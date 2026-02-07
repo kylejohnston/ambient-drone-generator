@@ -47,21 +47,26 @@ export class GranularProcessor {
   setTexture(value) {
     // Low value = smooth (large grains, low density)
     // High value = granular (small grains, high density)
+    // Made more subtle: larger minimum grain size, lower max density
     const normalized = value / 100;
 
-    // Grain size: 200ms at 0, 20ms at 100
-    this.params.grainSize = 0.2 - (normalized * 0.18);
+    // Grain size: 300ms at 0, 80ms at 100 (larger grains = smoother)
+    this.params.grainSize = 0.3 - (normalized * 0.22);
 
-    // Density: 8 at 0, 25 at 100
-    this.params.grainDensity = 8 + (normalized * 17);
+    // Density: 6 at 0, 15 at 100 (lower density = less choppy)
+    this.params.grainDensity = 6 + (normalized * 9);
+
+    // Increase overlap for smoother crossfades
+    this.params.overlap = 0.6 + (normalized * 0.2);
   }
 
   /**
    * Set pitch drift amount (0-100)
    */
   setDrift(value) {
-    // 0 = stable, 100 = up to 0.5 semitones of scatter
-    this.params.pitchScatter = (value / 100) * 0.5;
+    // 0 = stable, 100 = up to 0.15 semitones of scatter (reduced from 0.5)
+    // More subtle pitch variation to avoid obvious detuning
+    this.params.pitchScatter = (value / 100) * 0.15;
   }
 
   /**
@@ -162,9 +167,9 @@ export class GranularProcessor {
     // Create grain envelope (Hann window for smooth crossfade)
     const grainGain = ctx.createGain();
 
-    // Attack and release times
-    const attackTime = grainSize * 0.3;
-    const releaseTime = grainSize * 0.3;
+    // Attack and release times (longer for smoother crossfades)
+    const attackTime = grainSize * 0.4;
+    const releaseTime = grainSize * 0.4;
 
     // Envelope shape
     grainGain.gain.setValueAtTime(0, time);

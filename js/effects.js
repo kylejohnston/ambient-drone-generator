@@ -20,8 +20,9 @@ export class EffectsChain {
       warmth: 40,
       grit: 20,
       depth: 40,
-      space: 70
+      space: 8
     };
+    this.currentReverbTime = 8;
   }
 
   /**
@@ -186,12 +187,12 @@ export class EffectsChain {
 
     const input = createGain(1);
     const output = createGain(1);
-    const dryGain = createGain(0.3);
-    const wetGain = createGain(0.7);
+    const dryGain = createGain(0.4);
+    const wetGain = createGain(0.6);
 
     // Convolver for reverb
     const convolver = ctx.createConvolver();
-    convolver.buffer = this.generateImpulseResponse(4, 3);
+    convolver.buffer = this.generateImpulseResponse(this.currentReverbTime);
 
     // Routing
     input.connect(dryGain);
@@ -205,32 +206,36 @@ export class EffectsChain {
       output,
       dryGain,
       wetGain,
-      convolver,
-      setMix: (value) => {
-        const normalized = value / 100;
-        // Crossfade between dry and wet
-        dryGain.gain.value = 1 - normalized * 0.7;
-        wetGain.gain.value = normalized;
-      }
+      convolver
     };
   }
 
   /**
    * Generate impulse response for convolution reverb
+   * @param {number} reverbTime - Reverb time in seconds (0-60)
    */
-  generateImpulseResponse(duration, decay) {
+  generateImpulseResponse(reverbTime) {
     const ctx = getAudioContext();
     const sampleRate = ctx.sampleRate;
-    const length = sampleRate * duration;
+
+    // Minimum duration of 0.1s to avoid empty buffer
+    const duration = Math.max(0.1, reverbTime);
+    const length = Math.floor(sampleRate * duration);
     const impulse = ctx.createBuffer(2, length, sampleRate);
+
+    // Calculate decay factor based on reverb time
+    // Longer reverb = slower decay (lower value)
+    // RT60 approximation: decay so that amplitude is -60dB at end
+    const decayFactor = reverbTime > 0 ? 3 * (1 + Math.log10(Math.max(1, reverbTime / 2))) : 3;
 
     for (let channel = 0; channel < 2; channel++) {
       const channelData = impulse.getChannelData(channel);
 
       for (let i = 0; i < length; i++) {
         // Exponential decay with noise
-        const envelope = Math.pow(1 - i / length, decay);
-        // Stereo decorrelation
+        const t = i / length;
+        const envelope = Math.pow(1 - t, decayFactor);
+        // Stereo decorrelation with filtered noise for smoother tail
         const noise = (Math.random() * 2 - 1);
         channelData[i] = noise * envelope;
       }
@@ -258,12 +263,28 @@ export class EffectsChain {
   }
 
   /**
-   * Set reverb amount (space: 0-100)
+   * Set reverb time in seconds (0-60)
    */
   setSpace(value) {
     this.savedValues.space = value;
     if (!this.nodes.reverb || this.bypass.reverb) return;
-    this.nodes.reverb.setMix(value);
+
+    const reverbTime = value; // Now directly in seconds
+
+    // Only regenerate if time changed significantly (avoid constant regeneration)
+    if (Math.abs(reverbTime - this.currentReverbTime) >= 1) {
+      this.currentReverbTime = reverbTime;
+      this.nodes.reverb.convolver.buffer = this.generateImpulseResponse(reverbTime);
+    }
+
+    // Adjust wet/dry mix based on reverb time
+    // 0s = fully dry, 60s = mostly wet
+    const wetAmount = reverbTime > 0 ? Math.min(0.8, 0.3 + (reverbTime / 60) * 0.5) : 0;
+    const dryAmount = 1 - wetAmount * 0.5;
+
+    const ctx = getAudioContext();
+    this.nodes.reverb.dryGain.gain.setTargetAtTime(dryAmount, ctx.currentTime, 0.1);
+    this.nodes.reverb.wetGain.gain.setTargetAtTime(wetAmount, ctx.currentTime, 0.1);
   }
 
   /**

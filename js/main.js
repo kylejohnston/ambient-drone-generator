@@ -73,11 +73,11 @@ const state = {
     warmth: 40,
     grit: 20,
     depth: 40,
-    space: 70
+    space: 8
   },
   bypass: {
-    granular: false,
-    modulation: false,
+    granular: true,
+    modulation: true,
     filter: false,
     grit: false,
     delay: false,
@@ -99,6 +99,9 @@ const state = {
 // Audio components
 let granularProcessors = [];
 let layerGains = [null, null, null]; // Gain nodes for each layer
+let layerDrySources = [null, null]; // Looping buffer sources for dry path
+let layerDryGains = [null, null]; // Gain nodes for dry path
+let layerWetGains = [null, null]; // Gain nodes for wet (granular) path
 let effects = null;
 let modulation = null;
 let visualizer = null;
@@ -184,6 +187,12 @@ function bindControls() {
     slider.addEventListener('input', (e) => {
       state.controls[name] = parseInt(e.target.value, 10);
       updateParameter(name, state.controls[name]);
+
+      // Update reverb time display
+      if (name === 'space') {
+        const output = document.getElementById('space-value');
+        if (output) output.textContent = `${state.controls[name]}s`;
+      }
     });
   });
 }
@@ -207,10 +216,17 @@ function bindBypassToggles() {
 function applyBypass(stage, bypassed) {
   if (!state.isPlaying) return;
 
+  const ctx = getAudioContext();
+  const now = ctx.currentTime;
+
   switch (stage) {
     case 'granular':
-      granularProcessors.forEach(gp => {
-        if (gp.grainOutput) gp.grainOutput.gain.value = bypassed ? 0 : 1;
+      // Crossfade between dry (smooth) and wet (granular) paths
+      layerDryGains.forEach(gain => {
+        if (gain) gain.gain.setTargetAtTime(bypassed ? 1 : 0, now, 0.1);
+      });
+      layerWetGains.forEach(gain => {
+        if (gain) gain.gain.setTargetAtTime(bypassed ? 0 : 1, now, 0.1);
       });
       break;
     case 'modulation':
@@ -337,10 +353,33 @@ function setLayer(index, type, name, buffer) {
   state.layers[index] = { type, chord: type === 'chord' ? name : null, buffer, name, volume };
   updateLayerUI(index);
 
-  if (state.isPlaying && granularProcessors[index]) {
-    granularProcessors[index].stop();
-    granularProcessors[index].setBuffer(buffer);
-    granularProcessors[index].start();
+  if (state.isPlaying && index < 2) {
+    const ctx = getAudioContext();
+
+    // Update granular processor
+    if (granularProcessors[index]) {
+      granularProcessors[index].stop();
+      granularProcessors[index].setBuffer(buffer);
+      granularProcessors[index].start();
+    }
+
+    // Update dry source
+    if (layerDrySources[index]) {
+      try {
+        layerDrySources[index].stop();
+      } catch (e) {
+        // Already stopped
+      }
+    }
+
+    if (buffer && layerDryGains[index]) {
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      source.connect(layerDryGains[index]);
+      source.start();
+      layerDrySources[index] = source;
+    }
   }
 }
 
@@ -352,8 +391,21 @@ function clearLayer(index) {
   const chordSelect = document.querySelector(`.layer-chord[data-layer="${index}"]`);
   if (chordSelect) chordSelect.value = '';
 
-  if (state.isPlaying && granularProcessors[index]) {
-    granularProcessors[index].stop();
+  if (state.isPlaying && index < 2) {
+    // Stop granular processor
+    if (granularProcessors[index]) {
+      granularProcessors[index].stop();
+    }
+
+    // Stop dry source
+    if (layerDrySources[index]) {
+      try {
+        layerDrySources[index].stop();
+      } catch (e) {
+        // Already stopped
+      }
+      layerDrySources[index] = null;
+    }
   }
 }
 
@@ -919,8 +971,8 @@ function updateMoodDescription(mood, descEl) {
 
 function applyMoodSettings(mood) {
   // Map mood (0-100) to control values
-  // Dark (0) = low warmth, low movement, high space, low texture
-  // Bright (100) = high warmth, high movement, moderate space, high texture
+  // Dark (0) = low warmth, low movement, long reverb, low texture
+  // Bright (100) = high warmth, high movement, shorter reverb, high texture
 
   const controls = {
     texture: lerp(15, 65, mood / 100),      // More granular as brighter
@@ -929,7 +981,7 @@ function applyMoodSettings(mood) {
     warmth: lerp(15, 75, mood / 100),       // Filter opens as brighter
     grit: lerp(30, 15, mood / 100),         // More grit when darker
     depth: lerp(50, 35, mood / 100),        // More delay when darker
-    space: lerp(85, 60, mood / 100)         // More reverb when darker
+    space: lerp(20, 6, mood / 100)          // Longer reverb when darker (20s -> 6s)
   };
 
   // Apply all controls
@@ -1057,8 +1109,9 @@ async function startDrone() {
 
   const filter = effects.getFilterNode();
   if (filter) {
+    // Reduced modulation range for more subtle, gentle movement
     modulation.connect(filter.frequency, {
-      min: 200, max: 4000, intensity: 0.3, lfoIndex: 0
+      min: 800, max: 2500, intensity: 0.15, lfoIndex: 0
     });
   }
 
@@ -1071,25 +1124,50 @@ async function startDrone() {
     activeLayers = [state.layers[0]];
   }
 
-  // Create layer gain nodes and granular processors
+  // Create layer audio routing with dry/wet paths
   granularProcessors = state.layers.slice(0, 2).map((layer, index) => {
     // Create volume gain node for this layer
     const volume = layer.volume / 100;
     layerGains[index] = createGain(volume);
     layerGains[index].connect(effectsInput);
 
-    // Create granular processor connected to this layer's gain
-    const gp = new GranularProcessor(layerGains[index]);
+    // Create dry path (smooth looping playback) - starts muted if granular is ON
+    const dryGain = createGain(state.bypass.granular ? 1 : 0);
+    dryGain.connect(layerGains[index]);
+    layerDryGains[index] = dryGain;
+
+    // Create wet path (granular) - starts muted if granular is OFF
+    const wetGain = createGain(state.bypass.granular ? 0 : 1);
+    wetGain.connect(layerGains[index]);
+    layerWetGains[index] = wetGain;
+
+    // Create granular processor connected to wet gain
+    const gp = new GranularProcessor(wetGain);
     if (layer.buffer) gp.setBuffer(layer.buffer);
+
+    // Start dry source if layer has buffer
+    if (layer.buffer) {
+      const source = ctx.createBufferSource();
+      source.buffer = layer.buffer;
+      source.loop = true;
+      source.connect(dryGain);
+      source.start();
+      layerDrySources[index] = source;
+    }
+
     return gp;
   });
 
   applyControls();
 
+  // Apply non-granular bypasses (granular is handled via dry/wet gains above)
   Object.keys(state.bypass).forEach(stage => {
-    if (state.bypass[stage]) applyBypass(stage, true);
+    if (stage !== 'granular' && state.bypass[stage]) {
+      applyBypass(stage, true);
+    }
   });
 
+  // Start granular processors (they're connected to wet gain which is already set correctly)
   granularProcessors.forEach((gp, i) => {
     if (state.layers[i].buffer) gp.start();
   });
@@ -1120,12 +1198,26 @@ function stopDrone() {
   modulation?.stop();
   visualizer?.stop();
 
+  // Stop dry sources
+  layerDrySources.forEach(source => {
+    try {
+      source?.stop();
+    } catch (e) {
+      // Already stopped
+    }
+  });
+
   setTimeout(() => {
     effects?.disconnect();
     sequencerOutput?.disconnect();
     layerGains.forEach(g => g?.disconnect());
+    layerDryGains.forEach(g => g?.disconnect());
+    layerWetGains.forEach(g => g?.disconnect());
     granularProcessors = [];
     layerGains = [null, null, null];
+    layerDrySources = [null, null];
+    layerDryGains = [null, null];
+    layerWetGains = [null, null];
     effects = null;
     modulation = null;
     sequencerOutput = null;

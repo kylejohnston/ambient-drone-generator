@@ -260,10 +260,10 @@
       <h2 class="section-title">Signal Chain</h2>
 
       <!-- Granular Stage -->
-      <div class="control-stage">
+      <div class="control-stage bypassed">
         <div class="stage-header">
           <span class="stage-name">Granular</span>
-          <button class="bypass-toggle active" data-bypass="granular" aria-pressed="false" aria-label="Bypass granular processing">
+          <button class="bypass-toggle" data-bypass="granular" aria-pressed="true" aria-label="Bypass granular processing">
             <span class="toggle-on">ON</span>
             <span class="toggle-off">OFF</span>
           </button>
@@ -287,10 +287,10 @@
       </div>
 
       <!-- Modulation Stage -->
-      <div class="control-stage">
+      <div class="control-stage bypassed">
         <div class="stage-header">
           <span class="stage-name">Modulation</span>
-          <button class="bypass-toggle active" data-bypass="modulation" aria-pressed="false" aria-label="Bypass modulation">
+          <button class="bypass-toggle" data-bypass="modulation" aria-pressed="true" aria-label="Bypass modulation">
             <span class="toggle-on">ON</span>
             <span class="toggle-off">OFF</span>
           </button>
@@ -374,10 +374,11 @@
 
         <div class="control-group">
           <label for="space" class="control-label">
-            <span class="label-text">Space</span>
-            <span class="label-hint">intimate — vast</span>
+            <span class="label-text">Reverb Time</span>
+            <span class="label-hint">0s — 60s</span>
           </label>
-          <input type="range" id="space" min="0" max="100" value="70" class="control-slider">
+          <input type="range" id="space" min="0" max="60" step="1" value="8" class="control-slider">
+          <output for="space" class="control-value" id="space-value">8s</output>
         </div>
       </div>
     </section>

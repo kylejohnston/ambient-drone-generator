@@ -433,6 +433,17 @@ body {
   box-shadow: 0 0 10px var(--accent-glow);
 }
 
+/* Control Value Display */
+.control-value {
+  display: block;
+  text-align: right;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accent);
+  margin-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Transport - Floating */
 .transport {
   position: fixed;
