@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ambient Drone Generator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="visualizer" aria-hidden="true"></canvas>
+
+  <main class="app">
+    <header class="header">
+      <h1>Drone</h1>
+      <p class="tagline">ambient texture generator</p>
+    </header>
+
+    <div class="mode-selector" role="tablist" aria-label="Mode selection">
+      <button
+        role="tab"
+        id="tab-easy"
+        aria-selected="true"
+        aria-controls="panel-easy"
+        class="mode-tab active"
+      >
+        Easy
+      </button>
+      <button
+        role="tab"
+        id="tab-create"
+        aria-selected="false"
+        aria-controls="panel-create"
+        class="mode-tab"
+      >
+        Create
+      </button>
+    </div>
+
+    <section
+      id="panel-easy"
+      role="tabpanel"
+      aria-labelledby="tab-easy"
+      class="mode-panel active"
+    >
+      <div class="mood-control">
+        <div class="mood-header">
+          <span class="mood-label-left">Dark</span>
+          <span class="mood-title">Mood</span>
+          <span class="mood-label-right">Bright</span>
+        </div>
+        <input type="range" id="mood-slider" class="mood-slider" min="0" max="100" value="50">
+        <p class="mood-description" id="mood-description">Balanced warmth with gentle movement</p>
+      </div>
+      <button id="generate-btn" class="generate-btn">
+        Generate New Drone
+      </button>
+    </section>
+
+    <section
+      id="panel-create"
+      role="tabpanel"
+      aria-labelledby="tab-create"
+      class="mode-panel"
+      hidden
+    >
+      <!-- Layers Section -->
+      <div class="layers-section">
+        <h2 class="section-title">Layers</h2>
+        <div class="layers-container">
+          <!-- Layer 1 -->
+          <div class="layer" data-layer="0">
+            <div class="layer-header">
+              <span class="layer-number">1</span>
+              <span class="layer-name" id="layer-0-name">Empty</span>
+              <button class="layer-clear" data-layer="0" aria-label="Clear layer 1" hidden>×</button>
+            </div>
+            <div class="layer-controls">
+              <select class="layer-chord" data-layer="0">
+                <option value="">Select chord...</option>
+                <option value="Cmaj7">C Major 7</option>
+                <option value="Am7">A Minor 7</option>
+                <option value="Fmaj7">F Major 7</option>
+                <option value="Dm7">D Minor 7</option>
+                <option value="G7">G Dominant 7</option>
+                <option value="Em7">E Minor 7</option>
+                <option value="Bbmaj7">Bb Major 7</option>
+                <option value="Csus2">C Sus 2</option>
+                <option value="Fsus2">F Sus 2</option>
+                <option value="Asus2">A Sus 2</option>
+              </select>
+              <label class="layer-upload-btn">
+                Upload
+                <input type="file" class="layer-upload" data-layer="0" accept="audio/*">
+              </label>
+            </div>
+            <div class="layer-volume">
+              <label class="volume-label" for="layer-0-vol">Vol</label>
+              <input type="range" id="layer-0-vol" class="layer-vol-slider" data-layer="0" min="0" max="100" value="80">
+            </div>
+          </div>
+
+          <!-- Layer 2 -->
+          <div class="layer" data-layer="1">
+            <div class="layer-header">
+              <span class="layer-number">2</span>
+              <span class="layer-name" id="layer-1-name">Empty</span>
+              <button class="layer-clear" data-layer="1" aria-label="Clear layer 2" hidden>×</button>
+            </div>
+            <div class="layer-controls">
+              <select class="layer-chord" data-layer="1">
+                <option value="">Select chord...</option>
+                <option value="Cmaj7">C Major 7</option>
+                <option value="Am7">A Minor 7</option>
+                <option value="Fmaj7">F Major 7</option>
+                <option value="Dm7">D Minor 7</option>
+                <option value="G7">G Dominant 7</option>
+                <option value="Em7">E Minor 7</option>
+                <option value="Bbmaj7">Bb Major 7</option>
+                <option value="Csus2">C Sus 2</option>
+                <option value="Fsus2">F Sus 2</option>
+                <option value="Asus2">A Sus 2</option>
+              </select>
+              <label class="layer-upload-btn">
+                Upload
+                <input type="file" class="layer-upload" data-layer="1" accept="audio/*">
+              </label>
+            </div>
+            <div class="layer-volume">
+              <label class="volume-label" for="layer-1-vol">Vol</label>
+              <input type="range" id="layer-1-vol" class="layer-vol-slider" data-layer="1" min="0" max="100" value="80">
+            </div>
+          </div>
+
+          <!-- Layer 3 - Sequencer -->
+          <div class="layer sequencer-layer" data-layer="2">
+            <div class="layer-header">
+              <span class="layer-number">3</span>
+              <span class="layer-name" id="layer-2-name">Sequencer</span>
+              <button class="layer-clear" data-layer="2" aria-label="Clear sequencer" hidden>×</button>
+            </div>
+            <div class="sequencer-options">
+              <div class="sequencer-status">
+                <span class="seq-status-text" id="seq-status">Play notes below to record</span>
+              </div>
+              <label class="seq-granular-toggle">
+                <input type="checkbox" id="seq-granular-toggle">
+                <span class="toggle-label">Granular</span>
+              </label>
+            </div>
+            <div class="layer-volume">
+              <label class="volume-label" for="layer-2-vol">Vol</label>
+              <input type="range" id="layer-2-vol" class="layer-vol-slider" data-layer="2" min="0" max="100" value="100">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sequencer -->
+      <div class="keyboard-section">
+        <div class="sequencer-header">
+          <h2 class="section-title">Sequencer <span class="keyboard-hint">(Layer 3)</span></h2>
+          <div class="sequencer-controls">
+            <label class="quantize-toggle">
+              <input type="checkbox" id="quantize-toggle" checked>
+              <span class="toggle-label">Snap</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Sequencer Grid -->
+        <div class="sequencer-grid" id="sequencer-grid">
+          <div class="grid-playhead" id="grid-playhead"></div>
+          <div class="grid-lines">
+            <span class="grid-line beat"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line beat"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line beat"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line beat"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line"></span>
+            <span class="grid-line"></span>
+          </div>
+          <div class="grid-notes" id="grid-notes">
+            <!-- Note blocks will be added here dynamically -->
+          </div>
+        </div>
+        <div class="grid-info">
+          <span class="beat-label">1</span>
+          <span class="beat-label">2</span>
+          <span class="beat-label">3</span>
+          <span class="beat-label">4</span>
+        </div>
+
+        <!-- Keyboard for input -->
+        <div class="keyboard" id="keyboard">
+          <!-- White keys -->
+          <div class="key white" data-note="C3" data-key="a">
+            <span class="key-label">A</span>
+            <span class="note-label">C</span>
+          </div>
+          <div class="key white" data-note="D3" data-key="s">
+            <span class="key-label">S</span>
+            <span class="note-label">D</span>
+          </div>
+          <div class="key white" data-note="E3" data-key="d">
+            <span class="key-label">D</span>
+            <span class="note-label">E</span>
+          </div>
+          <div class="key white" data-note="F3" data-key="f">
+            <span class="key-label">F</span>
+            <span class="note-label">F</span>
+          </div>
+          <div class="key white" data-note="G3" data-key="g">
+            <span class="key-label">G</span>
+            <span class="note-label">G</span>
+          </div>
+          <div class="key white" data-note="A3" data-key="h">
+            <span class="key-label">H</span>
+            <span class="note-label">A</span>
+          </div>
+          <div class="key white" data-note="B3" data-key="j">
+            <span class="key-label">J</span>
+            <span class="note-label">B</span>
+          </div>
+          <div class="key white" data-note="C4" data-key="k">
+            <span class="key-label">K</span>
+            <span class="note-label">C</span>
+          </div>
+          <!-- Black keys -->
+          <div class="key black" data-note="C#3" data-key="w" style="left: calc(8.33% - 12px)">
+            <span class="key-label">W</span>
+          </div>
+          <div class="key black" data-note="D#3" data-key="e" style="left: calc(20.83% - 12px)">
+            <span class="key-label">E</span>
+          </div>
+          <div class="key black" data-note="F#3" data-key="t" style="left: calc(45.83% - 12px)">
+            <span class="key-label">T</span>
+          </div>
+          <div class="key black" data-note="G#3" data-key="y" style="left: calc(58.33% - 12px)">
+            <span class="key-label">Y</span>
+          </div>
+          <div class="key black" data-note="A#3" data-key="u" style="left: calc(70.83% - 12px)">
+            <span class="key-label">U</span>
+          </div>
+        </div>
+        <p class="keyboard-instructions">Tap keys to add notes. Drag blocks to reposition.</p>
+      </div>
+    </section>
+
+    <!-- Controls Section - Reordered to match signal flow -->
+    <section class="controls" aria-label="Drone controls">
+      <h2 class="section-title">Signal Chain</h2>
+
+      <!-- Granular Stage -->
+      <div class="control-stage">
+        <div class="stage-header">
+          <span class="stage-name">Granular</span>
+          <button class="bypass-toggle active" data-bypass="granular" aria-pressed="false" aria-label="Bypass granular processing">
+            <span class="toggle-on">ON</span>
+            <span class="toggle-off">OFF</span>
+          </button>
+        </div>
+
+        <div class="control-group">
+          <label for="texture" class="control-label">
+            <span class="label-text">Texture</span>
+            <span class="label-hint">smooth — granular</span>
+          </label>
+          <input type="range" id="texture" min="0" max="100" value="40" class="control-slider">
+        </div>
+
+        <div class="control-group">
+          <label for="drift" class="control-label">
+            <span class="label-text">Drift</span>
+            <span class="label-hint">stable — wandering</span>
+          </label>
+          <input type="range" id="drift" min="0" max="100" value="30" class="control-slider">
+        </div>
+      </div>
+
+      <!-- Modulation Stage -->
+      <div class="control-stage">
+        <div class="stage-header">
+          <span class="stage-name">Modulation</span>
+          <button class="bypass-toggle active" data-bypass="modulation" aria-pressed="false" aria-label="Bypass modulation">
+            <span class="toggle-on">ON</span>
+            <span class="toggle-off">OFF</span>
+          </button>
+        </div>
+
+        <div class="control-group">
+          <label for="movement" class="control-label">
+            <span class="label-text">Movement</span>
+            <span class="label-hint">static — evolving</span>
+          </label>
+          <input type="range" id="movement" min="0" max="100" value="50" class="control-slider">
+        </div>
+      </div>
+
+      <!-- Filter Stage -->
+      <div class="control-stage">
+        <div class="stage-header">
+          <span class="stage-name">Filter</span>
+          <button class="bypass-toggle active" data-bypass="filter" aria-pressed="false" aria-label="Bypass filter">
+            <span class="toggle-on">ON</span>
+            <span class="toggle-off">OFF</span>
+          </button>
+        </div>
+
+        <div class="control-group">
+          <label for="warmth" class="control-label">
+            <span class="label-text">Warmth</span>
+            <span class="label-hint">dark — bright</span>
+          </label>
+          <input type="range" id="warmth" min="0" max="100" value="40" class="control-slider">
+        </div>
+      </div>
+
+      <!-- Saturation Stage -->
+      <div class="control-stage">
+        <div class="stage-header">
+          <span class="stage-name">Saturation</span>
+          <button class="bypass-toggle active" data-bypass="grit" aria-pressed="false" aria-label="Bypass saturation">
+            <span class="toggle-on">ON</span>
+            <span class="toggle-off">OFF</span>
+          </button>
+        </div>
+
+        <div class="control-group">
+          <label for="grit" class="control-label">
+            <span class="label-text">Grit</span>
+            <span class="label-hint">clean — lo-fi</span>
+          </label>
+          <input type="range" id="grit" min="0" max="100" value="20" class="control-slider">
+        </div>
+      </div>
+
+      <!-- Delay Stage -->
+      <div class="control-stage">
+        <div class="stage-header">
+          <span class="stage-name">Delay</span>
+          <button class="bypass-toggle active" data-bypass="delay" aria-pressed="false" aria-label="Bypass delay">
+            <span class="toggle-on">ON</span>
+            <span class="toggle-off">OFF</span>
+          </button>
+        </div>
+
+        <div class="control-group">
+          <label for="depth" class="control-label">
+            <span class="label-text">Depth</span>
+            <span class="label-hint">dry — cascading</span>
+          </label>
+          <input type="range" id="depth" min="0" max="100" value="40" class="control-slider">
+        </div>
+      </div>
+
+      <!-- Reverb Stage -->
+      <div class="control-stage">
+        <div class="stage-header">
+          <span class="stage-name">Reverb</span>
+          <button class="bypass-toggle active" data-bypass="reverb" aria-pressed="false" aria-label="Bypass reverb">
+            <span class="toggle-on">ON</span>
+            <span class="toggle-off">OFF</span>
+          </button>
+        </div>
+
+        <div class="control-group">
+          <label for="space" class="control-label">
+            <span class="label-text">Space</span>
+            <span class="label-hint">intimate — vast</span>
+          </label>
+          <input type="range" id="space" min="0" max="100" value="70" class="control-slider">
+        </div>
+      </div>
+    </section>
+
+    <div class="transport">
+      <button id="play-btn" class="play-btn" aria-label="Play drone">
+        <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <polygon points="6,4 20,12 6,20" fill="currentColor"/>
+        </svg>
+        <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="5" y="4" width="5" height="16" rx="1" fill="currentColor"/>
+          <rect x="14" y="4" width="5" height="16" rx="1" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+  </main>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
