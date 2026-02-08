@@ -55,7 +55,7 @@ const KEY_MAP = {
 // Sequencer constants
 const LOOP_LENGTH = 4.0; // 4 seconds
 const GRID_DIVISIONS = 16; // 16th notes
-const NOTE_DURATION = 0.4; // How long each triggered note sounds
+const NOTE_DURATION = 3.5; // How long each triggered note sounds (long for ambient blend)
 
 // Application state
 const state = {
@@ -765,16 +765,23 @@ function playNotePreview(note) {
   const freq = NOTE_FREQUENCIES[note];
   const now = ctx.currentTime;
 
-  // Create oscillator for preview
+  // Create soft pad preview sound
   const osc = ctx.createOscillator();
   osc.type = 'sine';
   osc.frequency.value = freq;
 
+  const osc2 = ctx.createOscillator();
+  osc2.type = 'triangle';
+  osc2.frequency.value = freq;
+
+  // Soft envelope: gentle attack and release
   const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.15, now);
-  gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.12, now + 0.08);  // Soft attack
+  gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);  // Gentle fade
 
   osc.connect(gain);
+  osc2.connect(gain);
 
   // Connect to effects if playing, otherwise to destination
   if (sequencerOutput) {
@@ -784,7 +791,9 @@ function playNotePreview(note) {
   }
 
   osc.start(now);
-  osc.stop(now + 0.3);
+  osc2.start(now);
+  osc.stop(now + 0.6);
+  osc2.stop(now + 0.6);
 }
 
 function scheduleSequencerNotes() {
@@ -829,33 +838,48 @@ function triggerNote(note, time, noteId) {
   const ctx = getAudioContext();
   const freq = NOTE_FREQUENCIES[note];
 
-  // When granular is ON, notes sustain longer and go through granular processing
-  const duration = state.sequencer.granular ? 1.5 : NOTE_DURATION;
-  const attackTime = state.sequencer.granular ? 0.1 : 0.02;
-  const peakGain = state.sequencer.granular ? 0.08 : 0.12;
+  // Ambient pad-style envelope: slow attack, long sustain, gentle release
+  const duration = state.sequencer.granular ? 4.0 : NOTE_DURATION;
+  const attackTime = 0.4;  // Slow fade in (was 0.02)
+  const releaseTime = duration * 0.4;  // Long fade out
+  const peakGain = 0.06;  // Lower gain so overlapping notes don't clip
 
-  // Create rich oscillator sound
+  // Create pad sound with multiple oscillators
   const osc1 = ctx.createOscillator();
   osc1.type = 'sawtooth';
   osc1.frequency.value = freq;
 
   const osc2 = ctx.createOscillator();
   osc2.type = 'sawtooth';
-  osc2.frequency.value = freq * 1.003; // Slight detune
+  osc2.frequency.value = freq * 1.002; // Slight detune for warmth
+
+  const osc3 = ctx.createOscillator();
+  osc3.type = 'sawtooth';
+  osc3.frequency.value = freq * 0.998; // Detune other direction
 
   const subOsc = ctx.createOscillator();
   subOsc.type = 'sine';
   subOsc.frequency.value = freq / 2;
 
+  // Lowpass filter to soften the bright sawtooth sound
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 1200;  // Mellow cutoff
+  filter.Q.value = 0.5;
+
+  // Amplitude envelope: slow attack, sustain, slow release
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0, time);
   gain.gain.linearRampToValueAtTime(peakGain, time + attackTime);
-  gain.gain.exponentialRampToValueAtTime(peakGain * 0.7, time + duration * 0.3);
-  gain.gain.exponentialRampToValueAtTime(0.01, time + duration);
+  gain.gain.setValueAtTime(peakGain, time + duration - releaseTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
 
-  osc1.connect(gain);
-  osc2.connect(gain);
-  subOsc.connect(gain);
+  // Connect oscillators -> filter -> gain
+  osc1.connect(filter);
+  osc2.connect(filter);
+  osc3.connect(filter);
+  subOsc.connect(gain);  // Sub goes direct (already smooth sine)
+  filter.connect(gain);
 
   // Route through granular processor if enabled, otherwise direct to output
   if (state.sequencer.granular && sequencerGranular) {
@@ -866,17 +890,19 @@ function triggerNote(note, time, noteId) {
 
   osc1.start(time);
   osc2.start(time);
+  osc3.start(time);
   subOsc.start(time);
   osc1.stop(time + duration + 0.1);
   osc2.stop(time + duration + 0.1);
+  osc3.stop(time + duration + 0.1);
   subOsc.stop(time + duration + 0.1);
 
-  // Visual feedback
+  // Visual feedback (gentle pulse during attack)
   setTimeout(() => {
     const block = document.querySelector(`.note-block[data-note-id="${noteId}"]`);
     if (block) {
       block.classList.add('playing');
-      setTimeout(() => block.classList.remove('playing'), 300);
+      setTimeout(() => block.classList.remove('playing'), 400);
     }
   }, (time - ctx.currentTime) * 1000);
 }
