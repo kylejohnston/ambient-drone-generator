@@ -25,6 +25,14 @@ export class GranularProcessor {
     // Internal state
     this.nextGrainTime = 0;
     this.grainOutput = null;
+    this.playbackRate = 1;   // Base playback rate for pitch shifting
+  }
+
+  /**
+   * Set the base playback rate for pitch shifting
+   */
+  setPlaybackRate(rate) {
+    this.playbackRate = rate;
   }
 
   /**
@@ -158,11 +166,13 @@ export class GranularProcessor {
     const source = ctx.createBufferSource();
     source.buffer = this.buffer;
 
-    // Random pitch variation (in semitones)
+    // Apply base playback rate (for pitch shifting) plus random scatter
+    let rate = this.playbackRate;
     if (pitchScatter > 0) {
       const pitchOffset = (Math.random() * 2 - 1) * pitchScatter;
-      source.playbackRate.value = Math.pow(2, pitchOffset / 12);
+      rate *= Math.pow(2, pitchOffset / 12);
     }
+    source.playbackRate.value = rate;
 
     // Create grain envelope (Hann window for smooth crossfade)
     const grainGain = ctx.createGain();

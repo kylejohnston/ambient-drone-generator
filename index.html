@@ -76,7 +76,7 @@
             </div>
             <div class="layer-controls">
               <select class="layer-chord" data-layer="0">
-                <option value="">Select chord...</option>
+                <option value="">Select sound...</option>
                 <option value="Cmaj7">C Major 7</option>
                 <option value="Am7">A Minor 7</option>
                 <option value="Fmaj7">F Major 7</option>
@@ -87,11 +87,32 @@
                 <option value="Csus2">C Sus 2</option>
                 <option value="Fsus2">F Sus 2</option>
                 <option value="Asus2">A Sus 2</option>
+                <option value="upload">Upload file...</option>
               </select>
-              <label class="layer-upload-btn">
-                Upload
-                <input type="file" class="layer-upload" data-layer="0" accept="audio/*">
-              </label>
+              <input type="file" class="layer-upload" data-layer="0" accept="audio/*" hidden>
+            </div>
+            <div class="layer-params">
+              <div class="layer-param">
+                <label class="param-label" for="layer-0-filter">Tone</label>
+                <input type="range" id="layer-0-filter" class="layer-filter-slider" data-layer="0" min="0" max="100" value="50">
+              </div>
+              <div class="layer-param">
+                <label class="param-label" for="layer-0-pitch">Pitch</label>
+                <input type="range" id="layer-0-pitch" class="layer-pitch-slider" data-layer="0" min="-24" max="24" value="0">
+                <output class="pitch-value" id="layer-0-pitch-value">0</output>
+              </div>
+            </div>
+            <div class="layer-params">
+              <div class="layer-param">
+                <label class="param-label" for="layer-0-length">Length</label>
+                <input type="range" id="layer-0-length" class="layer-length-slider" data-layer="0" min="2" max="10" value="6">
+                <output class="param-value" id="layer-0-length-value">6s</output>
+              </div>
+              <div class="layer-param">
+                <label class="param-label" for="layer-0-fade">Fade</label>
+                <input type="range" id="layer-0-fade" class="layer-fade-slider" data-layer="0" min="0" max="2" step="0.1" value="1">
+                <output class="param-value" id="layer-0-fade-value">1.0s</output>
+              </div>
             </div>
             <div class="layer-volume">
               <label class="volume-label" for="layer-0-vol">Vol</label>
@@ -108,7 +129,7 @@
             </div>
             <div class="layer-controls">
               <select class="layer-chord" data-layer="1">
-                <option value="">Select chord...</option>
+                <option value="">Select sound...</option>
                 <option value="Cmaj7">C Major 7</option>
                 <option value="Am7">A Minor 7</option>
                 <option value="Fmaj7">F Major 7</option>
@@ -119,11 +140,32 @@
                 <option value="Csus2">C Sus 2</option>
                 <option value="Fsus2">F Sus 2</option>
                 <option value="Asus2">A Sus 2</option>
+                <option value="upload">Upload file...</option>
               </select>
-              <label class="layer-upload-btn">
-                Upload
-                <input type="file" class="layer-upload" data-layer="1" accept="audio/*">
-              </label>
+              <input type="file" class="layer-upload" data-layer="1" accept="audio/*" hidden>
+            </div>
+            <div class="layer-params">
+              <div class="layer-param">
+                <label class="param-label" for="layer-1-filter">Tone</label>
+                <input type="range" id="layer-1-filter" class="layer-filter-slider" data-layer="1" min="0" max="100" value="50">
+              </div>
+              <div class="layer-param">
+                <label class="param-label" for="layer-1-pitch">Pitch</label>
+                <input type="range" id="layer-1-pitch" class="layer-pitch-slider" data-layer="1" min="-24" max="24" value="0">
+                <output class="pitch-value" id="layer-1-pitch-value">0</output>
+              </div>
+            </div>
+            <div class="layer-params">
+              <div class="layer-param">
+                <label class="param-label" for="layer-1-length">Length</label>
+                <input type="range" id="layer-1-length" class="layer-length-slider" data-layer="1" min="2" max="10" value="6">
+                <output class="param-value" id="layer-1-length-value">6s</output>
+              </div>
+              <div class="layer-param">
+                <label class="param-label" for="layer-1-fade">Fade</label>
+                <input type="range" id="layer-1-fade" class="layer-fade-slider" data-layer="1" min="0" max="2" step="0.1" value="1">
+                <output class="param-value" id="layer-1-fade-value">1.0s</output>
+              </div>
             </div>
             <div class="layer-volume">
               <label class="volume-label" for="layer-1-vol">Vol</label>
@@ -142,10 +184,17 @@
               <div class="sequencer-status">
                 <span class="seq-status-text" id="seq-status">Play notes below to record</span>
               </div>
-              <label class="seq-granular-toggle">
-                <input type="checkbox" id="seq-granular-toggle">
-                <span class="toggle-label">Granular</span>
-              </label>
+            </div>
+            <div class="layer-params">
+              <div class="layer-param">
+                <label class="param-label" for="layer-2-filter">Tone</label>
+                <input type="range" id="layer-2-filter" class="layer-filter-slider" data-layer="2" min="0" max="100" value="50">
+              </div>
+              <div class="layer-param">
+                <label class="param-label" for="layer-2-pitch">Pitch</label>
+                <input type="range" id="layer-2-pitch" class="layer-pitch-slider" data-layer="2" min="-24" max="24" value="0">
+                <output class="pitch-value" id="layer-2-pitch-value">0</output>
+              </div>
             </div>
             <div class="layer-volume">
               <label class="volume-label" for="layer-2-vol">Vol</label>
@@ -255,36 +304,9 @@
       </div>
     </section>
 
-    <!-- Controls Section - Reordered to match signal flow -->
+    <!-- Controls Section - Shared effects for all layers -->
     <section class="controls" aria-label="Drone controls">
-      <h2 class="section-title">Signal Chain</h2>
-
-      <!-- Granular Stage -->
-      <div class="control-stage bypassed">
-        <div class="stage-header">
-          <span class="stage-name">Granular</span>
-          <button class="bypass-toggle" data-bypass="granular" aria-pressed="true" aria-label="Bypass granular processing">
-            <span class="toggle-on">ON</span>
-            <span class="toggle-off">OFF</span>
-          </button>
-        </div>
-
-        <div class="control-group">
-          <label for="texture" class="control-label">
-            <span class="label-text">Texture</span>
-            <span class="label-hint">smooth — granular</span>
-          </label>
-          <input type="range" id="texture" min="0" max="100" value="40" class="control-slider">
-        </div>
-
-        <div class="control-group">
-          <label for="drift" class="control-label">
-            <span class="label-text">Drift</span>
-            <span class="label-hint">stable — wandering</span>
-          </label>
-          <input type="range" id="drift" min="0" max="100" value="30" class="control-slider">
-        </div>
-      </div>
+      <h2 class="section-title">Effects</h2>
 
       <!-- Modulation Stage -->
       <div class="control-stage bypassed">
@@ -302,25 +324,6 @@
             <span class="label-hint">static — evolving</span>
           </label>
           <input type="range" id="movement" min="0" max="100" value="50" class="control-slider">
-        </div>
-      </div>
-
-      <!-- Filter Stage -->
-      <div class="control-stage">
-        <div class="stage-header">
-          <span class="stage-name">Filter</span>
-          <button class="bypass-toggle active" data-bypass="filter" aria-pressed="false" aria-label="Bypass filter">
-            <span class="toggle-on">ON</span>
-            <span class="toggle-off">OFF</span>
-          </button>
-        </div>
-
-        <div class="control-group">
-          <label for="warmth" class="control-label">
-            <span class="label-text">Warmth</span>
-            <span class="label-hint">dark — bright</span>
-          </label>
-          <input type="range" id="warmth" min="0" max="100" value="40" class="control-slider">
         </div>
       </div>
 

@@ -11,13 +11,11 @@ export class EffectsChain {
     this.nodes = {};
     this.isInitialized = false;
     this.bypass = {
-      filter: false,
       grit: false,
       delay: false,
       reverb: false
     };
     this.savedValues = {
-      warmth: 40,
       grit: 20,
       depth: 40,
       space: 8
@@ -27,7 +25,8 @@ export class EffectsChain {
 
   /**
    * Initialize the effects chain
-   * Signal flow: input -> filter -> saturation -> delay -> reverb -> output
+   * Signal flow: input -> saturation -> delay -> reverb -> output
+   * (Filter is now per-layer, not in shared effects chain)
    */
   init() {
     if (this.isInitialized) return this.nodes.input;
@@ -36,12 +35,6 @@ export class EffectsChain {
 
     // Input gain
     this.nodes.input = createGain(1);
-
-    // Filter (warmth control)
-    this.nodes.filter = ctx.createBiquadFilter();
-    this.nodes.filter.type = 'lowpass';
-    this.nodes.filter.frequency.value = 4000;
-    this.nodes.filter.Q.value = 0.7;
 
     // Saturation (grit)
     this.nodes.saturation = this.createSaturation();
@@ -52,9 +45,8 @@ export class EffectsChain {
     // Reverb
     this.nodes.reverb = this.createReverb();
 
-    // Connect chain
-    this.nodes.input.connect(this.nodes.filter);
-    this.nodes.filter.connect(this.nodes.saturation.input);
+    // Connect chain (filter removed - now per-layer)
+    this.nodes.input.connect(this.nodes.saturation.input);
     this.nodes.saturation.output.connect(this.nodes.delay.input);
     this.nodes.delay.output.connect(this.nodes.reverb.input);
     this.nodes.reverb.output.connect(this.output);
@@ -245,24 +237,6 @@ export class EffectsChain {
   }
 
   /**
-   * Set filter frequency (warmth: 0-100)
-   * 0 = dark (200Hz), 100 = bright (8000Hz)
-   */
-  setWarmth(value) {
-    this.savedValues.warmth = value;
-    if (!this.nodes.filter || this.bypass.filter) return;
-
-    // Exponential scaling for natural feel
-    const normalized = value / 100;
-    const minFreq = 200;
-    const maxFreq = 8000;
-    const freq = minFreq * Math.pow(maxFreq / minFreq, normalized);
-
-    const ctx = getAudioContext();
-    this.nodes.filter.frequency.setTargetAtTime(freq, ctx.currentTime, 0.1);
-  }
-
-  /**
    * Set reverb time in seconds (0-60)
    */
   setSpace(value) {
@@ -304,27 +278,6 @@ export class EffectsChain {
     if (!this.nodes.saturation || this.bypass.grit) return;
     this.nodes.saturation.setMix(value);
     this.nodes.saturation.setDrive(value / 100);
-  }
-
-  /**
-   * Get filter node for modulation
-   */
-  getFilterNode() {
-    return this.nodes.filter;
-  }
-
-  /**
-   * Bypass/enable filter
-   */
-  setFilterBypass(bypassed) {
-    this.bypass.filter = bypassed;
-    if (bypassed) {
-      // Set to max frequency (effectively bypassed)
-      this.nodes.filter?.frequency.setTargetAtTime(20000, getAudioContext().currentTime, 0.05);
-    } else {
-      // Restore saved value
-      this.setWarmth(this.savedValues.warmth);
-    }
   }
 
   /**
