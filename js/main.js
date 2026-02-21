@@ -53,29 +53,29 @@ const KEY_MAP = {
 };
 
 // Sequencer constants
-const LOOP_LENGTH = 4.0; // 4 seconds
+const LOOP_LENGTH = 4.0;   // 4 seconds
 const GRID_DIVISIONS = 16; // 16th notes
-const NOTE_DURATION = 3.5; // How long each triggered note sounds (long for ambient blend)
+const NOTE_DURATION = 4.0; // How long each triggered note sounds (long for ambient blend)
 
 // Application state
 const state = {
   isPlaying: false,
   mode: 'create',
   layers: [
+    { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 8, pitch: 0, length: 10, fade: 2 },
     { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 50, pitch: 0, length: 6, fade: 1 },
-    { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 50, pitch: 0, length: 6, fade: 1 },
-    { type: 'sequencer', chord: null, buffer: null, name: 'Sequencer', volume: 100, filter: 50, pitch: 0 }
+    { type: 'sequencer', chord: null, buffer: null, name: 'Sequencer', volume: 100, filter: 33, pitch: -11 }
   ],
   controls: {
-    movement: 50,
-    grit: 20,
-    depth: 40,
-    space: 8
+    movement: 56, // Modulation amount
+    grit: 24,     // Amount of distortion/saturation
+    depth: 40,    // Delay
+    space: 60     // Reverb time in seconds
   },
   bypass: {
-    modulation: true,
+    modulation: false,
     grit: false,
-    delay: false,
+    delay: true,
     reverb: false
   },
   sequencer: {
@@ -277,14 +277,17 @@ function bindLayerParams() {
 }
 
 /**
+ * Map a 0-100 tone value to a filter frequency (Hz)
+ */
+function toneToFreq(value) {
+  return 200 * Math.pow(8000 / 200, value / 100);
+}
+
+/**
  * Apply filter value to a filter node (0-100 maps to frequency)
  */
 function applyFilterValue(filter, value) {
-  const normalized = value / 100;
-  const minFreq = 200;
-  const maxFreq = 8000;
-  const freq = minFreq * Math.pow(maxFreq / minFreq, normalized);
-  filter.frequency.value = freq;
+  filter.frequency.value = toneToFreq(value);
 }
 
 /**
@@ -294,12 +297,7 @@ function updateLayerFilter(index, value) {
   if (!state.isPlaying || !layerFilters[index]) return;
 
   const ctx = getAudioContext();
-  const normalized = value / 100;
-  const minFreq = 200;
-  const maxFreq = 8000;
-  const freq = minFreq * Math.pow(maxFreq / minFreq, normalized);
-
-  layerFilters[index].frequency.setTargetAtTime(freq, ctx.currentTime, 0.1);
+  layerFilters[index].frequency.setTargetAtTime(toneToFreq(value), ctx.currentTime, 0.1);
 }
 
 /**
@@ -466,6 +464,30 @@ function bindLayers() {
       }
     });
   });
+
+  // Layer toggle acts as power/clear button
+  document.querySelectorAll('.layer-toggle[data-layer]').forEach(btn => {
+    const layerIndex = parseInt(btn.dataset.layer, 10);
+    btn.addEventListener('click', () => {
+      if (layerIndex === 2) {
+        // Sequencer toggle: clear notes to turn off
+        if (state.sequencer.notes.length > 0) {
+          clearSequencer();
+        }
+        return;
+      }
+      // Chord layers: clear if loaded, or auto-select first chord to turn on
+      if (state.layers[layerIndex].type) {
+        clearLayer(layerIndex);
+      } else {
+        const chordSelect = document.querySelector(`.layer-chord[data-layer="${layerIndex}"]`);
+        if (chordSelect) {
+          chordSelect.value = 'Cmaj7';
+          chordSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    });
+  });
 }
 
 function setLayer(index, type, name, buffer) {
@@ -485,28 +507,7 @@ function setLayer(index, type, name, buffer) {
   updateLayerUI(index);
 
   if (state.isPlaying && index < 2) {
-    const ctx = getAudioContext();
-    const playbackRate = Math.pow(2, pitch / 12);
-
-    // Stop current source
-    if (layerSources[index]) {
-      try {
-        layerSources[index].stop();
-      } catch (e) {
-        // Already stopped
-      }
-    }
-
-    // Start new source
-    if (buffer && layerFilters[index]) {
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-      source.playbackRate.value = playbackRate;
-      source.connect(layerFilters[index]);
-      source.start();
-      layerSources[index] = source;
-    }
+    restartLayerSource(index);
   }
 }
 
@@ -727,7 +728,6 @@ function removeNote(id) {
 function clearSequencer() {
   state.sequencer.notes = [];
   updateSequencerUI();
-  updateSequencerLayerUI();
 }
 
 function updateSequencerUI() {
@@ -749,12 +749,12 @@ function updateSequencerUI() {
     block.dataset.noteId = noteData.id;
     block.textContent = NOTE_NAMES[noteData.note];
 
-    // Position
+    // Position: notes fill their column (between grid lines)
     const leftPercent = (noteData.time / LOOP_LENGTH) * 100;
     const row = noteRows.get(noteData.id) || 0;
-    const topOffset = 10 + row * 32;
+    const topOffset = 7 + row * 38;
 
-    block.style.left = `calc(${leftPercent}% - 18px)`;
+    block.style.left = `calc(${leftPercent}% + 2px)`;
     block.style.top = `${topOffset}px`;
 
     // Delete button
@@ -798,28 +798,12 @@ function assignNoteRows(notes) {
       });
       if (!conflict) break;
       row++;
-      if (row > 1) { row = 0; break; } // Max 2 rows
+      if (row > 2) { row = 0; break; } // Max 3 rows
     }
     rowMap.set(note.id, row);
   });
 
   return rowMap;
-}
-
-function updateSequencerLayerUI() {
-  const layerEl = document.querySelector('.sequencer-layer');
-  const statusEl = document.getElementById('seq-status');
-  const clearBtn = layerEl?.querySelector('.layer-clear');
-
-  if (state.sequencer.notes.length > 0) {
-    layerEl?.classList.add('has-content');
-    statusEl.textContent = `${state.sequencer.notes.length} note${state.sequencer.notes.length > 1 ? 's' : ''}`;
-    if (clearBtn) clearBtn.hidden = false;
-  } else {
-    layerEl?.classList.remove('has-content');
-    statusEl.textContent = 'Play notes below to record';
-    if (clearBtn) clearBtn.hidden = true;
-  }
 }
 
 // ============ Drag and Drop ============
@@ -865,7 +849,7 @@ function handleGridMouseMove(e) {
 
   // Update visual position
   const leftPercent = (newTime / LOOP_LENGTH) * 100;
-  block.style.left = `calc(${leftPercent}% - 18px)`;
+  block.style.left = `calc(${leftPercent}% + 2px)`;
 
   // Store pending time
   state.dragState.pendingTime = newTime;
@@ -1163,8 +1147,8 @@ function bindGenerateButton() {
     await initAudioContext();
     const buffer = await generateChordBuffer(randomChord);
 
-    state.layers[0] = { type: 'chord', chord: randomChord, buffer, name: randomChord, volume: state.layers[0].volume };
-    state.layers[1] = { type: null, chord: null, buffer: null, name: 'Empty', volume: state.layers[1].volume };
+    state.layers[0] = { ...state.layers[0], type: 'chord', chord: randomChord, buffer, name: randomChord };
+    state.layers[1] = { ...state.layers[1], type: null, chord: null, buffer: null, name: 'Empty' };
 
     if (state.isPlaying) {
       stopDrone();
@@ -1339,22 +1323,6 @@ async function startDrone() {
 
   // Setup layers 0 and 1
   const activeLayers = state.layers.slice(0, 2).filter(l => l.buffer);
-
-  // In create mode, require user to select content first
-  if (state.mode === 'create' && activeLayers.length === 0 && state.sequencer.notes.length === 0) {
-    // Nothing to play - clean up and return
-    effects?.disconnect();
-    sequencerOutput?.disconnect();
-    layerGains.forEach(g => g?.disconnect());
-    layerFilters.forEach(f => f?.disconnect());
-    layerGains = [null, null, null];
-    layerFilters = [null, null, null];
-    effects = null;
-    modulation?.stop();
-    modulation = null;
-    sequencerOutput = null;
-    return;
-  }
 
   // In easy mode, auto-generate a chord if nothing selected
   if (state.mode === 'easy' && activeLayers.length === 0 && state.sequencer.notes.length === 0) {

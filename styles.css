@@ -122,8 +122,9 @@ body {
 
 .header {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
   padding: 1.25rem 1.5rem;
 }
 
@@ -146,10 +147,10 @@ body {
 /* ============ Panels ============ */
 
 .panel {
-  background: var(--bg-panel);
+  /* background: var(--bg-panel); */
   border: 1.5px solid var(--border);
   border-radius: var(--radius-panel);
-  padding: 1.25rem;
+  padding: 1rem;
 }
 
 .panel__label {
@@ -263,53 +264,57 @@ input[data-fader] {
   flex-direction: column;
   align-items: center;
   gap: 0.375rem;
-  width: 48px;
+  width: 72px;
   user-select: none;
 }
 
 .fader__track {
   position: relative;
-  width: 4px;
-  height: 120px;
+  width: 72px;
+  height: 160px;
   background: var(--bg-inset);
-  border-radius: 2px;
+  border: 1.5px solid var(--text-muted);
+  border-radius: var(--radius-control);
   cursor: pointer;
   touch-action: none;
+  overflow: hidden;
 }
 
 .fader__fill {
   position: absolute;
-  bottom: 0;
+  bottom: 32px;
   left: 0;
   width: 100%;
-  border-radius: 2px;
-  background: var(--accent);
+  background: var(--text);
   transition: height 0.05s linear;
 }
 
 .fader__readout {
   position: absolute;
-  left: 50%;
-  bottom: -2px;
-  transform: translate(-50%, 100%);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  z-index: 1;
   font-family: var(--font);
-  font-size: 0.6875rem;
+  font-size: 1.125rem;
   font-weight: 300;
   color: var(--text);
-  white-space: nowrap;
   pointer-events: none;
-  padding-top: 0.375rem;
-  text-transform: uppercase;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
 }
 
 .fader__label {
-  font-size: 0.5625rem;
-  color: var(--text-muted);
+  font-size: 1.125rem;
+  color: var(--text);
   letter-spacing: 0.08em;
   text-align: center;
-  margin-top: 1rem;
+  margin-top: 0.25rem;
 }
 
 .fader:focus-visible {
@@ -324,40 +329,86 @@ input[data-fader] {
 
 .fader-row {
   display: flex;
-  justify-content: center;
-  gap: 0.25rem;
+  gap: 16px;
   padding-top: 0.75rem;
 }
 
-/* ============ Layer Toggle (large switch) ============ */
+/* ============ Layer Toggle (power button) ============ */
 
 .layer-toggle {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 32px;
-  background: var(--bg-inset);
-  border: 1.5px solid var(--border);
+  gap: 8px;
+  padding: 2px;
+  background: var(--text-muted);
+  border: none;
   border-radius: var(--radius-control);
-  color: var(--text-muted);
-  font-family: var(--font);
-  font-size: 0.6875rem;
-  font-weight: 300;
-  letter-spacing: 0.06em;
   cursor: pointer;
-  transition: all var(--transition);
+  flex-shrink: 0;
+  font-family: var(--font);
+  font-weight: 300;
+  transition: background var(--transition);
+  width: 72px;
+}
+
+section.has-content .layer-toggle {
+  justify-content: flex-end;
 }
 
 .layer-toggle:hover {
-  border-color: var(--accent);
-  color: var(--text);
+  opacity: 0.85;
+}
+
+.layer-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .has-content .layer-toggle {
   background: var(--accent);
-  border-color: var(--accent);
-  color: #161513;
+}
+
+/* Power symbol indicators */
+.toggle-on-ind,
+.toggle-off-ind {
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.45);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.layer-toggle .toggle-on-ind { display: none; }
+.layer-toggle .toggle-off-ind { display: block; }
+.has-content .layer-toggle .toggle-on-ind { display: block; }
+.has-content .layer-toggle .toggle-off-ind { display: none; }
+
+/* Layer ID inside toggle */
+.toggle-id {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  height: 44px;
+  min-width: 44px;
+  background: var(--bg);
+  border-radius: calc(var(--radius-control) - 2px);
+  font-size: 1.5rem;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* ============ Layer Panel ============ */
+
+.panel--layer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Layer header width = 5 faders × 72px + 4 gaps × 16px */
+.panel--layer .layer-header {
+  width: calc(5 * 72px + 4 * 16px);
 }
 
 /* ============ Layer Header ============ */
@@ -365,67 +416,49 @@ input[data-fader] {
 .layer-header {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  gap: 1rem;
   margin-bottom: 0.625rem;
 }
 
-.layer-name {
-  flex: 1;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.has-content .layer-name {
-  color: var(--text);
-}
-
+/* Hidden — JS still references these elements */
+.layer-name,
 .layer-clear {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-muted);
-  font-size: 1rem;
-  cursor: pointer;
-  border-radius: var(--radius-control);
-  transition: all var(--transition);
+  display: none;
 }
 
-.layer-clear:hover {
-  border-color: var(--border);
-  color: var(--text);
+/* Sequencer layer-name is visible and pushes Snap to the right */
+.sequencer-layer .layer-name {
+  display: block;
+  flex: 1;
+  font-size: 1.125rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
 }
 
 /* ============ Layer Controls (Chord Select) ============ */
 
 .layer-controls {
-  margin-bottom: 0.5rem;
+  flex: 1;
 }
 
 .layer-chord {
   width: 100%;
-  height: 40px;
-  padding: 0 2rem 0 0.75rem;
+  height: 48px;
+  padding: 0 2.5rem 0 0.875rem;
   font-family: var(--font);
-  font-size: 0.75rem;
+  font-size: 1.125rem;
   font-weight: 300;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text);
   background: var(--bg-inset);
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--text-muted);
   border-radius: var(--radius-control);
   cursor: pointer;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%236d685f' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.75rem center;
+  background-position: right 0.875rem center;
 }
 
 .layer-chord:focus-visible {
@@ -459,16 +492,7 @@ input[data-fader] {
 }
 
 .sequencer-options {
-  margin-bottom: 0.5rem;
-}
-
-.sequencer-status {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-}
-
-.sequencer-layer.has-content .sequencer-status {
-  color: var(--accent);
+  display: none;
 }
 
 /* ============ Quantize Toggle ============ */
@@ -476,61 +500,35 @@ input[data-fader] {
 .quantize-toggle {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
   cursor: pointer;
-  font-size: 0.6875rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.75rem;
+  flex-shrink: 0;
 }
 
 .quantize-toggle input {
-  appearance: none;
-  width: 32px;
-  height: 18px;
-  background: var(--bg-inset);
-  border: 1.5px solid var(--border);
-  border-radius: 9px;
-  position: relative;
-  cursor: pointer;
-  transition: all var(--transition);
-}
-
-.quantize-toggle input::before {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  background: var(--text-muted);
-  border-radius: 50%;
-  transition: all var(--transition);
-}
-
-.quantize-toggle input:checked {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.quantize-toggle input:checked::before {
-  left: 16px;
-  background: var(--bg);
+  display: none;
 }
 
 .quantize-toggle .toggle-label {
-  letter-spacing: 0.06em;
+  font-size: 1.125rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  transition: color var(--transition);
+}
+
+.quantize-toggle input:checked + .toggle-label {
+  color: var(--accent);
 }
 
 /* ============ Sequencer Grid ============ */
 
 .sequencer-grid {
   position: relative;
-  height: 80px;
+  height: 120px;
   background: var(--bg-inset);
   border: 1.5px solid var(--border);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+  border-bottom: none;
   overflow: hidden;
-  margin-bottom: 0.25rem;
 }
 
 .grid-lines {
@@ -545,11 +543,11 @@ input[data-fader] {
 
 .grid-line {
   flex: 1;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--border-light);
 }
 
 .grid-line.beat {
-  border-right-color: var(--text-muted);
+  background: var(--border);
 }
 
 .grid-line:last-child {
@@ -592,14 +590,14 @@ input[data-fader] {
 
 .note-block {
   position: absolute;
-  height: 28px;
-  min-width: 36px;
+  height: 34px;
+  width: calc(6.25% - 4px);
   background: var(--accent);
   border-radius: var(--radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
   font-weight: 300;
   color: #161513;
   cursor: grab;
@@ -670,11 +668,12 @@ input[data-fader] {
 .keyboard {
   position: relative;
   display: flex;
-  height: 72px;
+  flex: 1;
   background: var(--bg-inset);
-  border-radius: var(--radius-control);
-  overflow: hidden;
   border: 1.5px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-control) var(--radius-control);
+  overflow: hidden;
 }
 
 .key {
@@ -682,8 +681,8 @@ input[data-fader] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  padding-bottom: 0.375rem;
+  justify-content: flex-start;
+  padding-top: 0.625rem;
   cursor: pointer;
   transition: background var(--transition);
   user-select: none;
@@ -691,7 +690,7 @@ input[data-fader] {
 
 .key.white {
   flex: 1;
-  background: #d8d4ce;
+  background: #E6E3E1;
   border-right: 1px solid var(--border);
 }
 
@@ -700,7 +699,7 @@ input[data-fader] {
 }
 
 .key.white:hover {
-  background: #e8e4de;
+  background: #ece9e6;
 }
 
 .key.white.active {
@@ -710,147 +709,90 @@ input[data-fader] {
 .key.black {
   position: absolute;
   top: 0;
-  width: 24px;
-  height: 60%;
-  background: #2a2824;
-  border-radius: 0 0 4px 4px;
+  width: 32px;
+  height: 52%;
+  background: #161513;
+  border-radius: 0 0 6px 6px;
   z-index: 1;
-  justify-content: flex-end;
-  padding-bottom: 0.25rem;
 }
 
 .key.black:hover {
-  background: #3a3834;
+  background: #252321;
 }
 
 .key.black.active {
   background: var(--accent);
 }
 
-.key-label {
-  font-family: var(--font);
-  font-size: 0.5625rem;
-  font-weight: 300;
-  color: var(--text-muted);
-}
-
-.key.white .key-label {
-  color: #8a8680;
-}
-
-.key.black .key-label {
-  color: #6a6660;
-}
-
-.key.active .key-label {
-  color: #161513;
-}
-
 .note-label {
   font-family: var(--font);
-  font-size: 0.625rem;
-  color: #9a9690;
-  margin-top: 0.0625rem;
+  font-size: 1.125rem;
+  font-weight: 300;
+  color: #161513;
+  line-height: 1;
 }
 
-.key.white.active .note-label {
+.key.black .note-label {
+  color: #6D685F;
+}
+
+.key.white.active .note-label,
+.key.black.active .note-label {
   color: #161513;
 }
 
-.keyboard-instructions {
-  text-align: center;
-  font-size: 0.625rem;
-  color: var(--text-muted);
-  margin-top: 0.375rem;
-}
-
-/* ============ Transport ============ */
-
-.transport {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  justify-content: center;
-  padding: 1.5rem;
-  background: linear-gradient(to top, var(--bg) 0%, var(--bg) 60%, transparent 100%);
-  z-index: 100;
-  pointer-events: none;
-}
-
-.transport > * {
-  pointer-events: auto;
-}
+/* ============ Play Button ============ */
 
 .play-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 64px;
-  background: var(--bg-panel);
-  border: 1.5px solid var(--border);
-  border-radius: 50%;
+  gap: 8px;
+  padding: 2px;
+  background: var(--text-muted);
+  border: none;
+  border-radius: var(--radius-control);
   cursor: pointer;
-  transition: all var(--transition);
+  font-weight: 300;
+  flex-shrink: 0;
+  transition: background var(--transition);
+  width: 72px;
 }
 
 .play-btn:hover {
-  border-color: var(--accent);
+  opacity: 0.85;
 }
 
 .play-btn:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 4px;
+  outline-offset: 2px;
 }
 
 .play-btn.playing {
   background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 24px var(--accent-dim);
+  justify-content: flex-end;
 }
 
+/* I/O indicators */
+.play-btn .toggle-on-ind { display: none; }
+.play-btn .toggle-off-ind { display: block; }
+.play-btn.playing .toggle-on-ind { display: block; }
+.play-btn.playing .toggle-off-ind { display: none; }
+
+/* SVG icons inside the toggle-id box */
 .play-icon,
 .pause-icon {
-  width: 24px;
-  height: 24px;
-  color: var(--text);
+  width: 20px;
+  height: 20px;
+  color: var(--bg);
 }
 
 .play-icon {
-  margin-left: 3px;
+  margin-left: 2px; /* optical center for play triangle */
 }
 
-.play-btn.playing .play-icon,
-.play-btn.playing .pause-icon {
-  color: #161513;
-}
-
-.play-btn .pause-icon {
-  display: none;
-}
-
-.play-btn.playing .play-icon {
-  display: none;
-}
-
-.play-btn.playing .pause-icon {
-  display: block;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    box-shadow: 0 0 16px var(--accent-dim);
-  }
-  50% {
-    box-shadow: 0 0 32px var(--accent-dim);
-  }
-}
-
-.play-btn.playing {
-  animation: pulse 3s ease-in-out infinite;
-}
+.play-btn .pause-icon { display: none; }
+.play-btn.playing .play-icon { display: none; }
+.play-btn.playing .pause-icon { display: block; }
 
 /* ============ Layer states ============ */
 
@@ -894,11 +836,10 @@ input[data-fader] {
   }
 
   .header {
-    text-align: center;
     padding: 1rem;
   }
 
   .fader__track {
-    height: 90px;
+    height: 120px;
   }
 }
