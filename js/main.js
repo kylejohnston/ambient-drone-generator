@@ -13,6 +13,7 @@ import {
 import { ModulationSystem } from './modulation.js';
 import { EffectsChain } from './effects.js';
 import { Visualizer } from './visualizer.js';
+import { VerticalFader } from './fader.js';
 
 // Note frequencies (Hz)
 const NOTE_FREQUENCIES = {
@@ -59,7 +60,7 @@ const NOTE_DURATION = 3.5; // How long each triggered note sounds (long for ambi
 // Application state
 const state = {
   isPlaying: false,
-  mode: 'easy',
+  mode: 'create',
   layers: [
     { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 50, pitch: 0, length: 6, fade: 1 },
     { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 50, pitch: 0, length: 6, fade: 1 },
@@ -107,7 +108,8 @@ function init() {
   visualizer = new Visualizer(canvas);
 
   // Set initial mode class
-  document.querySelector('.app').classList.add('mode-easy');
+  document.querySelector('.app').classList.add('mode-create');
+  state.mode = 'create';
 
   bindModeSelector();
   bindControls();
@@ -121,6 +123,11 @@ function init() {
   bindGenerateButton();
 
   startPlayheadAnimation();
+
+  // Initialize vertical faders for all data-fader inputs
+  document.querySelectorAll('input[data-fader]').forEach(input => {
+    new VerticalFader(input);
+  });
 }
 
 // ============ Mode & Controls ============
