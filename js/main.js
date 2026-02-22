@@ -1350,20 +1350,19 @@ async function startDrone() {
     }
   });
 
-  applyControls();
-
-  // Apply bypasses for shared effects
-  Object.keys(state.bypass).forEach(stage => {
-    if (state.bypass[stage]) {
-      applyBypass(stage, true);
-    }
-  });
-
   // Start sequencer scheduling
   startSequencerScheduler();
 
   visualizer.start();
   state.isPlaying = true;
+
+  // Apply controls and bypasses after isPlaying = true so their guards pass
+  applyControls();
+  Object.keys(state.bypass).forEach(stage => {
+    if (state.bypass[stage]) {
+      applyBypass(stage, true);
+    }
+  });
 }
 
 function startSequencerScheduler() {
