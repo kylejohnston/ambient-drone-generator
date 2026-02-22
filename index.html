@@ -38,64 +38,62 @@
         <!-- Row 1: Header + Effects -->
         <div class="rack__top">
           <header class="header">
-            <button id="play-btn" class="play-btn" aria-label="Play drone">
-              <span class="toggle-on-ind">I</span>
-              <span class="toggle-id">
-                <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <polygon points="6,4 20,12 6,20" fill="currentColor"/>
-                </svg>
-                <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="5" y="4" width="5" height="16" rx="1" fill="currentColor"/>
-                  <rect x="14" y="4" width="5" height="16" rx="1" fill="currentColor"/>
-                </svg>
-              </span>
-              <span class="toggle-off-ind">O</span>
-            </button>
             <div class="header-text">
               <h1>a_d_gen_01</h1>
-              <p class="tagline">ambient drone · generator</p>
+              <p class="tagline">ambient drone ___ generator</p>
             </div>
+            <button id="play-btn" class="play-btn" aria-label="Play drone">
+              <span class="toggle-on-ind">|</span>
+              <span class="toggle-id">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="var(--text)" class="play-icon">
+                  <path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v9a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM6.166 5.106a.75.75 0 0 1 0 1.06 8.25 8.25 0 1 0 11.668 0 .75.75 0 1 1 1.06-1.06c3.808 3.807 3.808 9.98 0 13.788-3.807 3.808-9.98 3.808-13.788 0-3.808-3.807-3.808-9.98 0-13.788a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
+                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="var(--accent)" class="pause-icon">
+                  <path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v9a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM6.166 5.106a.75.75 0 0 1 0 1.06 8.25 8.25 0 1 0 11.668 0 .75.75 0 1 1 1.06-1.06c3.808 3.807 3.808 9.98 0 13.788-3.807 3.808-9.98 3.808-13.788 0-3.808-3.807-3.808-9.98 0-13.788a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
+                </svg>
+              </span>
+              <span class="toggle-off-ind">●</span>
+            </button>
           </header>
 
           <section class="panel panel--effects">
-            <span class="panel__label">Effects</span>
-
+            
             <div class="effects-row">
               <!-- Modulation -->
               <div class="control-stage">
+                <input type="range" id="movement" class="control-slider" data-fader data-fader-label="MOD" min="0" max="100" value="56">
                 <button class="bypass-toggle active" data-bypass="modulation" aria-pressed="false" aria-label="Bypass modulation">
                   <span class="toggle-on">ON</span>
                   <span class="toggle-off">OFF</span>
                 </button>
-                <input type="range" id="movement" class="control-slider" data-fader data-fader-label="MOD" min="0" max="100" value="56">
               </div>
 
               <!-- Saturation -->
               <div class="control-stage">
+                <input type="range" id="grit" class="control-slider" data-fader data-fader-label="GRIT" min="0" max="100" value="24">
                 <button class="bypass-toggle active" data-bypass="grit" aria-pressed="false" aria-label="Bypass saturation">
                   <span class="toggle-on">ON</span>
                   <span class="toggle-off">OFF</span>
                 </button>
-                <input type="range" id="grit" class="control-slider" data-fader data-fader-label="GRIT" min="0" max="100" value="24">
               </div>
 
               <!-- Delay -->
               <div class="control-stage bypassed">
+                <input type="range" id="depth" class="control-slider" data-fader data-fader-label="DLAY" min="0" max="100" value="40">
                 <button class="bypass-toggle" data-bypass="delay" aria-pressed="false" aria-label="Bypass delay">
                   <span class="toggle-on">ON</span>
                   <span class="toggle-off">OFF</span>
                 </button>
-                <input type="range" id="depth" class="control-slider" data-fader data-fader-label="DLAY" min="0" max="100" value="40">
               </div>
 
               <!-- Reverb -->
               <div class="control-stage">
+                <input type="range" id="space" class="control-slider" data-fader data-fader-label="RVRB" data-fader-format="time" min="0" max="60" step="1" value="60">
+                <output for="space" class="sr-only" id="space-value">60s</output>
                 <button class="bypass-toggle active" data-bypass="reverb" aria-pressed="false" aria-label="Bypass reverb">
                   <span class="toggle-on">ON</span>
                   <span class="toggle-off">OFF</span>
                 </button>
-                <input type="range" id="space" class="control-slider" data-fader data-fader-label="RVRB" data-fader-format="time" min="0" max="60" step="1" value="60">
-                <output for="space" class="sr-only" id="space-value">60s</output>
               </div>
             </div>
           </section>
@@ -109,7 +107,7 @@
             <div class="layer-header">
               <div class="layer-controls">
                 <select class="layer-chord" data-layer="0">
-                  <option value="">Select sound...</option>
+                  <option value="">Select chord…</option>
                   <option value="Cmaj7">C Major 7</option>
                   <option value="Am7">A Minor 7</option>
                   <option value="Fmaj7">F Major 7</option>
@@ -125,9 +123,9 @@
                 <input type="file" class="layer-upload" data-layer="0" accept="audio/*" hidden>
               </div>
               <button class="layer-toggle" data-layer="0" aria-label="Toggle layer 1">
-                <span class="toggle-on-ind">I</span>
+                <span class="toggle-on-ind">|</span>
                 <span class="toggle-id">C1</span>
-                <span class="toggle-off-ind">O</span>
+                <span class="toggle-off-ind">●</span>
               </button>
               <!-- Keep in DOM for JS -->
               <span class="layer-name" id="layer-0-name" hidden>Empty</span>
@@ -151,7 +149,7 @@
             <div class="layer-header">
               <div class="layer-controls">
                 <select class="layer-chord" data-layer="1">
-                  <option value="">Select sound...</option>
+                  <option value="">Select chord…</option>
                   <option value="Cmaj7">C Major 7</option>
                   <option value="Am7">A Minor 7</option>
                   <option value="Fmaj7">F Major 7</option>
@@ -167,9 +165,9 @@
                 <input type="file" class="layer-upload" data-layer="1" accept="audio/*" hidden>
               </div>
               <button class="layer-toggle" data-layer="1" aria-label="Toggle layer 2">
-                <span class="toggle-on-ind">I</span>
+                <span class="toggle-on-ind">|</span>
                 <span class="toggle-id">C2</span>
-                <span class="toggle-off-ind">O</span>
+                <span class="toggle-off-ind">●</span>
               </button>
               <!-- Keep in DOM for JS -->
               <span class="layer-name" id="layer-1-name" hidden>Empty</span>
@@ -194,9 +192,9 @@
           <div class="sequencer-left">
             <div class="layer-header">
               <button class="layer-toggle" data-layer="2" aria-label="Toggle sequencer">
-                <span class="toggle-on-ind">I</span>
+                <span class="toggle-on-ind">|</span>
                 <span class="toggle-id">S1</span>
-                <span class="toggle-off-ind">O</span>
+                <span class="toggle-off-ind">●</span>
               </button>
               <span class="layer-name" id="layer-2-name">Sequencer</span>
               <label class="quantize-toggle">
@@ -290,6 +288,9 @@
 
       </div>
     </section>
+    <footer>
+        <p>Created by <a href="https://kylejohnston.com" target="_blank" rel="noopener">Kyle Johnston</a>. Built with vanilla JavaScript and the Web Audio API.</p>
+    </footer>
 
   </main>
 
