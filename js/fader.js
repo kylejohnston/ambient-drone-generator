@@ -7,6 +7,9 @@
  * so existing main.js listeners work unchanged.
  */
 
+// Must match .fader__readout height in CSS
+const READOUT_H = 32;
+
 export class VerticalFader {
   constructor(input) {
     this.input = input;
@@ -77,8 +80,9 @@ export class VerticalFader {
 
   updateFromPointer(e) {
     const rect = this.track.getBoundingClientRect();
-    // Vertical: top = max, bottom = min
-    const ratio = 1 - Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    // Vertical: top = max, bottom = min (exclude readout band at bottom)
+    const usableH = rect.height - READOUT_H;
+    const ratio = 1 - Math.max(0, Math.min(1, (e.clientY - rect.top) / usableH));
     const raw = this.min + ratio * (this.max - this.min);
     const stepped = Math.round(raw / this.step) * this.step;
     const clamped = Math.max(this.min, Math.min(this.max, stepped));
@@ -132,8 +136,10 @@ export class VerticalFader {
   sync() {
     const value = parseFloat(this.input.value);
     const percent = ((value - this.min) / (this.max - this.min)) * 100;
+    const ratio = (percent / 100).toFixed(4);
 
-    this.fill.style.height = `${percent}%`;
+    // Fill height occupies the usable area above the readout band
+    this.fill.style.height = `calc(${ratio} * (100% - ${READOUT_H}px))`;
     this.readout.textContent = this.formatValue(value);
     this.el.setAttribute('aria-valuenow', value);
   }

@@ -14,6 +14,7 @@ import { ModulationSystem } from './modulation.js';
 import { EffectsChain } from './effects.js';
 import { Visualizer } from './visualizer.js';
 import { VerticalFader } from './fader.js';
+import { encodeState, decodeState, getUrlParam } from './url-state.js';
 
 // Note frequencies (Hz)
 const NOTE_FREQUENCIES = {
@@ -55,7 +56,7 @@ const KEY_MAP = {
 // Sequencer constants
 const LOOP_LENGTH = 4.0;   // 4 seconds
 const GRID_DIVISIONS = 16; // 16th notes
-const NOTE_DURATION = 4.0; // How long each triggered note sounds (long for ambient blend)
+const NOTE_DURATION = 3.5; // How long each triggered note sounds (long for ambient blend)
 
 // Application state
 const state = {
@@ -80,6 +81,7 @@ const state = {
   },
   sequencer: {
     snap: true,
+    muted: false,
     notes: [], // { id, note, time }
     loopStartTime: 0,
     nextNoteId: 0,
@@ -99,6 +101,126 @@ let modulation = null;
 let visualizer = null;
 let sequencerOutput = null;
 let playheadAnimationFrame = null;
+
+// ============ URL Preset Sharing ============
+
+let _urlUpdateTimer = null;
+
+/**
+ * Debounced: update the URL bar with the current encoded state.
+ * Uses replaceState to avoid polluting browser history.
+ */
+function scheduleUrlUpdate() {
+  clearTimeout(_urlUpdateTimer);
+  _urlUpdateTimer = setTimeout(() => {
+    const encoded = encodeState(state);
+    history.replaceState(null, '', `?p=${encoded}`);
+  }, 500);
+}
+
+/**
+ * Apply a decoded preset object to the app state and UI.
+ * Only chord layers are restored; uploaded-file layers load empty.
+ */
+function applyPreset(preset) {
+  if (!preset || preset.v !== 1) return;
+
+  const CONTROL_ORDER = ['movement', 'grit', 'depth', 'space'];
+  const BYPASS_ORDER  = ['modulation', 'grit', 'delay', 'reverb'];
+
+  // Controls
+  CONTROL_ORDER.forEach((name, i) => {
+    const val = preset.c?.[i];
+    if (val == null) return;
+    const input = document.getElementById(name);
+    if (!input) return;
+    input.value = val;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  // Bypass states
+  BYPASS_ORDER.forEach((stage, i) => {
+    const bypassed = preset.b?.[i] === 1;
+    const toggle = document.querySelector(`.bypass-toggle[data-bypass="${stage}"]`);
+    if (!toggle) return;
+    const stageEl = toggle.closest('.control-stage');
+    if (bypassed) {
+      toggle.classList.remove('active');
+      stageEl?.classList.add('bypassed');
+    } else {
+      toggle.classList.add('active');
+      stageEl?.classList.remove('bypassed');
+    }
+    toggle.setAttribute('aria-pressed', bypassed ? 'true' : 'false');
+    state.bypass[stage] = bypassed;
+  });
+
+  // Layer params and chord selection
+  preset.l?.forEach((layerData, i) => {
+    if (layerData == null) return;
+
+    const volInput = document.querySelector(`.layer-vol-slider[data-layer="${i}"]`);
+    if (volInput && layerData.v != null) {
+      volInput.value = layerData.v;
+      volInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    const filterInput = document.querySelector(`.layer-filter-slider[data-layer="${i}"]`);
+    if (filterInput && layerData.f != null) {
+      filterInput.value = layerData.f;
+      filterInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    const pitchInput = document.querySelector(`.layer-pitch-slider[data-layer="${i}"]`);
+    if (pitchInput && layerData.p != null) {
+      pitchInput.value = layerData.p;
+      pitchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    if (i < 2) {
+      // Length and fade must be set before the chord change event so
+      // generateChordBuffer picks up the correct duration/crossfade values
+      const lengthInput = document.querySelector(`.layer-length-slider[data-layer="${i}"]`);
+      if (lengthInput && layerData.l != null) {
+        lengthInput.value = layerData.l;
+        lengthInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      const fadeInput = document.querySelector(`.layer-fade-slider[data-layer="${i}"]`);
+      if (fadeInput && layerData.x != null) {
+        fadeInput.value = layerData.x;
+        fadeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      // Trigger async chord generation via the existing bindLayers listener
+      if (layerData.ch) {
+        const chordSelect = document.querySelector(`.layer-chord[data-layer="${i}"]`);
+        if (chordSelect) {
+          chordSelect.value = layerData.ch;
+          chordSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    }
+  });
+
+  // Sequencer snap and notes
+  if (preset.sq) {
+    const snap = preset.sq.sn === 1;
+    state.sequencer.snap = snap;
+    const snapToggle = document.getElementById('quantize-toggle');
+    if (snapToggle) snapToggle.checked = snap;
+
+    if (Array.isArray(preset.sq.n)) {
+      state.sequencer.notes = preset.sq.n.map(([note, time]) => ({
+        id: state.sequencer.nextNoteId++,
+        note,
+        time
+      }));
+    }
+
+    updateSequencerUI();
+  }
+}
 
 /**
  * Initialize the application
@@ -128,6 +250,10 @@ function init() {
   document.querySelectorAll('input[data-fader]').forEach(input => {
     new VerticalFader(input);
   });
+
+  // Restore preset from URL if present
+  const saved = getUrlParam();
+  if (saved) applyPreset(decodeState(saved));
 }
 
 // ============ Mode & Controls ============
@@ -190,6 +316,8 @@ function bindControls() {
         const output = document.getElementById('space-value');
         if (output) output.textContent = `${state.controls[name]}s`;
       }
+
+      scheduleUrlUpdate();
     });
   });
 }
@@ -203,6 +331,7 @@ function bindLayerParams() {
       const value = parseInt(e.target.value, 10);
       state.layers[layerIndex].filter = value;
       updateLayerFilter(layerIndex, value);
+      scheduleUrlUpdate();
     });
   });
 
@@ -220,6 +349,8 @@ function bindLayerParams() {
       if (output) {
         output.textContent = value > 0 ? `+${value}` : value;
       }
+
+      scheduleUrlUpdate();
     });
   });
 
@@ -245,6 +376,8 @@ function bindLayerParams() {
           restartLayerSource(layerIndex);
         }
       }
+
+      scheduleUrlUpdate();
     });
   });
 
@@ -272,6 +405,8 @@ function bindLayerParams() {
       }
       // Note: For uploaded files, crossfade was applied on upload.
       // Changing fade after upload would require storing the original buffer.
+
+      scheduleUrlUpdate();
     });
   });
 }
@@ -328,6 +463,7 @@ function bindBypassToggles() {
 
       state.bypass[stage] = isActive;
       applyBypass(stage, isActive);
+      scheduleUrlUpdate();
     });
   });
 }
@@ -470,9 +606,9 @@ function bindLayers() {
     const layerIndex = parseInt(btn.dataset.layer, 10);
     btn.addEventListener('click', () => {
       if (layerIndex === 2) {
-        // Sequencer toggle: clear notes to turn off
-        if (state.sequencer.notes.length > 0) {
-          clearSequencer();
+        if (state.sequencer.notes.length > 0 || state.sequencer.muted) {
+          state.sequencer.muted = !state.sequencer.muted;
+          updateSequencerUI();
         }
         return;
       }
@@ -509,6 +645,8 @@ function setLayer(index, type, name, buffer) {
   if (state.isPlaying && index < 2) {
     restartLayerSource(index);
   }
+
+  scheduleUrlUpdate();
 }
 
 function clearLayer(index) {
@@ -544,6 +682,8 @@ function clearLayer(index) {
       layerSources[index] = null;
     }
   }
+
+  scheduleUrlUpdate();
 }
 
 function updateLayerUI(index) {
@@ -609,6 +749,7 @@ function bindLayerVolumes() {
       const volume = parseInt(e.target.value, 10);
       state.layers[layerIndex].volume = volume;
       updateLayerVolume(layerIndex, volume);
+      scheduleUrlUpdate();
     });
   });
 }
@@ -637,6 +778,7 @@ function bindSequencer() {
   // Snap toggle
   snapToggle?.addEventListener('change', (e) => {
     state.sequencer.snap = e.target.checked;
+    scheduleUrlUpdate();
   });
 
   // Keyboard mouse input
@@ -772,14 +914,19 @@ function updateSequencerUI() {
 
   // Update layer status
   if (state.sequencer.notes.length > 0) {
-    layerEl?.classList.add('has-content');
-    statusEl.textContent = `${state.sequencer.notes.length} note${state.sequencer.notes.length > 1 ? 's' : ''}`;
+    const count = state.sequencer.notes.length;
+    layerEl?.classList.toggle('has-content', !state.sequencer.muted);
+    statusEl.textContent = state.sequencer.muted
+      ? `${count} note${count > 1 ? 's' : ''} (off)`
+      : `${count} note${count > 1 ? 's' : ''}`;
     if (clearBtn) clearBtn.hidden = false;
   } else {
     layerEl?.classList.remove('has-content');
     statusEl.textContent = 'Play notes below to record';
     if (clearBtn) clearBtn.hidden = true;
   }
+
+  scheduleUrlUpdate();
 }
 
 function assignNoteRows(notes) {
@@ -939,7 +1086,7 @@ function playNotePreview(note) {
 }
 
 function scheduleSequencerNotes() {
-  if (!state.isPlaying || state.sequencer.notes.length === 0) return;
+  if (!state.isPlaying || state.sequencer.notes.length === 0 || state.sequencer.muted) return;
 
   const ctx = getAudioContext();
   const now = ctx.currentTime;
