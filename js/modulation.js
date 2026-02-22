@@ -99,10 +99,6 @@ export class ModulationSystem {
     lfo.gain.connect(scalingGain);
     scalingGain.connect(param);
 
-    // Set the base value to the center of the range
-    const centerValue = config.min + range / 2;
-    param.setValueAtTime(centerValue, ctx.currentTime);
-
     // Store for later updates
     this.targets.set(param, {
       ...config,

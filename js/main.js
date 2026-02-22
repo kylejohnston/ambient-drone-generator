@@ -1257,6 +1257,8 @@ function restartLayerSource(index) {
 
   // Start new source
   if (layer.buffer && layerFilters[index]) {
+    layerFilters[index].frequency.cancelScheduledValues(0);
+    layerFilters[index].frequency.setValueAtTime(toneToFreq(layer.filter), ctx.currentTime);
     const source = ctx.createBufferSource();
     source.buffer = layer.buffer;
     source.loop = true;
