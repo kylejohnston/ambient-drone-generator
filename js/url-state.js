@@ -66,7 +66,7 @@ class BitReader {
   }
 }
 
-// ── Wordlist placeholder (will be replaced in Task 2) ─────────────────────
+// ── BIP39 English wordlist (2048 words, canonical ordering) ──────────────
 const BIP39 = [
   'abandon','ability','able','about','above','absent','absorb','abstract',
   'absurd','abuse','access','accident','account','accuse','achieve','acid',
