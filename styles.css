@@ -107,14 +107,14 @@ body {
 
 .rack__top {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr auto;
   gap: 1rem;
   align-items: stretch;
 }
 
 .rack__layers {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  justify-content: flex-end;
   gap: 1rem;
 }
 
@@ -122,24 +122,25 @@ body {
 
 .header {
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 1rem;
-  padding: 1.25rem 1.5rem;
+  padding: 1rem;
 }
 
 .header h1 {
-  font-size: 1.5rem;
+  font-size: 3.75rem;
   font-weight: 300;
   letter-spacing: 0.12em;
   color: var(--text);
   line-height: 1.2;
+  text-transform: none;
   white-space: nowrap;
 }
 
 .tagline {
-  font-size: 0.6875rem;
-  color: var(--text-muted);
+  font-size: 1.125rem;
+  color: var(--text);
   letter-spacing: 0.08em;
   margin-top: 0.25rem;
 }
@@ -170,7 +171,7 @@ body {
 
 .effects-row {
   display: flex;
-  gap: 1.25rem;
+  gap: 1rem;
   flex: 1;
   align-items: flex-end;
 }
@@ -180,7 +181,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  flex: 1;
+  /* flex: 1; */
 }
 
 .control-stage.bypassed {
@@ -590,14 +591,15 @@ section.has-content .layer-toggle {
 
 .note-block {
   position: absolute;
-  height: 34px;
-  width: calc(6.25% - 4px);
+  height: 32px;
+  width: calc(6.25% - 8px);
+  margin-left: 2px;
   background: var(--accent);
   border-radius: var(--radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: 1rem;
   font-weight: 300;
   color: #161513;
   cursor: grab;
@@ -673,6 +675,7 @@ section.has-content .layer-toggle {
   border: 1.5px solid var(--border);
   border-top: none;
   border-radius: 0 0 var(--radius-control) var(--radius-control);
+  min-height: 140px;
   overflow: hidden;
 }
 
@@ -752,6 +755,7 @@ section.has-content .layer-toggle {
   border: none;
   border-radius: var(--radius-control);
   cursor: pointer;
+  font-family: var(--font);
   font-weight: 300;
   flex-shrink: 0;
   transition: background var(--transition);
@@ -820,7 +824,7 @@ section.has-content .layer-toggle {
   }
 
   .rack__layers {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 
   .panel--sequencer {
@@ -837,8 +841,15 @@ section.has-content .layer-toggle {
 
   .header {
     padding: 1rem;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: start;
   }
 
+  .panel--layer,
+  .panel--effects {
+    align-items: start;
+  }
   .fader__track {
     height: 120px;
   }
