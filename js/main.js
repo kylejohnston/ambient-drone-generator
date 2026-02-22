@@ -61,7 +61,6 @@ const NOTE_DURATION = 3.5; // How long each triggered note sounds (long for ambi
 // Application state
 const state = {
   isPlaying: false,
-  mode: 'create',
   layers: [
     { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 8, pitch: 0, length: 10, fade: 2 },
     { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 50, pitch: 0, length: 6, fade: 1 },
@@ -229,11 +228,6 @@ function init() {
   const canvas = document.getElementById('visualizer');
   visualizer = new Visualizer(canvas);
 
-  // Set initial mode class
-  document.querySelector('.app').classList.add('mode-create');
-  state.mode = 'create';
-
-  bindModeSelector();
   bindControls();
   bindLayerParams();
   bindBypassToggles();
@@ -241,8 +235,6 @@ function init() {
   bindLayers();
   bindLayerVolumes();
   bindSequencer();
-  bindMoodSlider();
-  bindGenerateButton();
 
   startPlayheadAnimation();
 
@@ -256,49 +248,7 @@ function init() {
   if (saved) applyPreset(decodeState(saved));
 }
 
-// ============ Mode & Controls ============
-
-function bindModeSelector() {
-  const tabs = document.querySelectorAll('.mode-tab');
-  const panels = document.querySelectorAll('.mode-panel');
-  const app = document.querySelector('.app');
-  const playBtn = document.getElementById('play-btn');
-
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const targetId = tab.getAttribute('aria-controls');
-      const newMode = targetId === 'panel-easy' ? 'easy' : 'create';
-
-      // If switching modes and currently playing, stop playback
-      if (newMode !== state.mode && state.isPlaying) {
-        stopDrone();
-        playBtn.classList.remove('playing');
-        playBtn.setAttribute('aria-label', 'Play drone');
-      }
-
-      tabs.forEach(t => {
-        t.classList.remove('active');
-        t.setAttribute('aria-selected', 'false');
-      });
-      tab.classList.add('active');
-      tab.setAttribute('aria-selected', 'true');
-
-      panels.forEach(panel => {
-        panel.classList.remove('active');
-        panel.hidden = true;
-      });
-      const targetPanel = document.getElementById(targetId);
-      targetPanel.classList.add('active');
-      targetPanel.hidden = false;
-
-      state.mode = newMode;
-
-      // Toggle controls visibility based on mode
-      app.classList.toggle('mode-easy', state.mode === 'easy');
-      app.classList.toggle('mode-create', state.mode === 'create');
-    });
-  });
-}
+// ============ Controls ============
 
 function bindControls() {
   const controlNames = ['movement', 'grit', 'depth', 'space'];
@@ -794,7 +744,7 @@ function bindSequencer() {
 
   // Keyboard input
   document.addEventListener('keydown', async (e) => {
-    if (e.repeat || state.mode !== 'create') return;
+    if (e.repeat) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
     const note = KEY_MAP[e.key.toLowerCase()];
@@ -1195,120 +1145,6 @@ function triggerNote(note, time, noteId) {
   }, (time - ctx.currentTime) * 1000);
 }
 
-// ============ Mood Slider (Easy Mode) ============
-
-// Mood descriptions based on slider position
-const MOOD_DESCRIPTIONS = [
-  { max: 15, text: "Deep, dark, and minimal" },
-  { max: 30, text: "Mysterious shadows with subtle texture" },
-  { max: 45, text: "Warm darkness with gentle pulses" },
-  { max: 55, text: "Balanced warmth with gentle movement" },
-  { max: 70, text: "Bright and evolving textures" },
-  { max: 85, text: "Luminous layers with rich harmonics" },
-  { max: 100, text: "Radiant, expansive, and alive" }
-];
-
-// Chord preferences by mood (darker to brighter)
-const MOOD_CHORDS = {
-  dark: ['Dm7', 'Am7', 'Em7'],
-  mid: ['Cmaj7', 'Fmaj7', 'Am7', 'Dm7'],
-  bright: ['Cmaj7', 'Fmaj7', 'Bbmaj7', 'Csus2', 'Fsus2', 'Asus2']
-};
-
-function bindMoodSlider() {
-  const slider = document.getElementById('mood-slider');
-  const description = document.getElementById('mood-description');
-
-  slider.addEventListener('input', (e) => {
-    const mood = parseInt(e.target.value, 10);
-    updateMoodDescription(mood, description);
-
-    // Apply mood settings if playing
-    if (state.isPlaying) {
-      applyMoodSettings(mood);
-    }
-  });
-}
-
-function updateMoodDescription(mood, descEl) {
-  const desc = MOOD_DESCRIPTIONS.find(d => mood <= d.max) || MOOD_DESCRIPTIONS[MOOD_DESCRIPTIONS.length - 1];
-  descEl.textContent = desc.text;
-}
-
-function applyMoodSettings(mood) {
-  // Map mood (0-100) to control values
-  // Dark (0) = low filter, low movement, long reverb
-  // Bright (100) = high filter, high movement, shorter reverb
-
-  const controls = {
-    movement: lerp(20, 75, mood / 100),     // More LFO activity as brighter
-    grit: lerp(30, 15, mood / 100),         // More grit when darker
-    depth: lerp(50, 35, mood / 100),        // More delay when darker
-    space: lerp(20, 6, mood / 100)          // Longer reverb when darker (20s -> 6s)
-  };
-
-  // Apply shared controls
-  Object.entries(controls).forEach(([name, value]) => {
-    const intValue = Math.round(value);
-    state.controls[name] = intValue;
-    updateParameter(name, intValue);
-  });
-
-  // Apply mood-based filter to all layers (Easy mode sets all layers the same)
-  const filterValue = Math.round(lerp(15, 75, mood / 100));
-  state.layers.forEach((layer, index) => {
-    layer.filter = filterValue;
-    updateLayerFilter(index, filterValue);
-  });
-}
-
-function getMoodChord(mood) {
-  let chordPool;
-  if (mood < 35) {
-    chordPool = MOOD_CHORDS.dark;
-  } else if (mood < 65) {
-    chordPool = MOOD_CHORDS.mid;
-  } else {
-    chordPool = MOOD_CHORDS.bright;
-  }
-  return chordPool[Math.floor(Math.random() * chordPool.length)];
-}
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-// ============ Generate Button ============
-
-function bindGenerateButton() {
-  document.getElementById('generate-btn').addEventListener('click', async () => {
-    const moodSlider = document.getElementById('mood-slider');
-    const mood = parseInt(moodSlider.value, 10);
-
-    // Get chord based on mood
-    const randomChord = getMoodChord(mood);
-
-    // Apply mood-based control settings
-    applyMoodSettings(mood);
-
-    await initAudioContext();
-    const buffer = await generateChordBuffer(randomChord);
-
-    state.layers[0] = { ...state.layers[0], type: 'chord', chord: randomChord, buffer, name: randomChord };
-    state.layers[1] = { ...state.layers[1], type: null, chord: null, buffer: null, name: 'Empty' };
-
-    if (state.isPlaying) {
-      stopDrone();
-      setTimeout(() => startDrone(), 100);
-    } else {
-      await startDrone();
-      const playBtn = document.getElementById('play-btn');
-      playBtn.classList.add('playing');
-      playBtn.setAttribute('aria-label', 'Pause drone');
-    }
-  });
-}
-
 // ============ Audio Generation ============
 
 async function generateChordBuffer(chordName, layerIndex = 0) {
@@ -1470,12 +1306,6 @@ async function startDrone() {
 
   // Setup layers 0 and 1
   const activeLayers = state.layers.slice(0, 2).filter(l => l.buffer);
-
-  // In easy mode, auto-generate a chord if nothing selected
-  if (state.mode === 'easy' && activeLayers.length === 0 && state.sequencer.notes.length === 0) {
-    const buffer = await generateChordBuffer('Cmaj7', 0);
-    state.layers[0] = { ...state.layers[0], type: 'chord', chord: 'Cmaj7', buffer, name: 'Cmaj7' };
-  }
 
   // Create layer audio routing with per-layer filter
   state.layers.slice(0, 2).forEach((layer, index) => {

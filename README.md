@@ -75,11 +75,10 @@ Each effect stage has an independent bypass toggle. Bypassed stages crossfade to
 │   ├── modulation.js       4-LFO modulation system
 │   ├── granular.js         Granular synthesis processor (unused in UI)
 │   ├── fader.js            Custom vertical fader component
+│   ├── url-state.js        URL preset encoding/decoding
 │   ├── visualizer.js       Canvas-based audio-reactive background
 │   └── main.js             Application state, UI bindings, sequencer
-├── CLAUDE.md               Development principles
-├── OUTLINE.md              Research notes on ambient drone production
-└── feedback.md             Iteration notes
+└── CLAUDE.md               Development principles
 ```
 
 ## UI
@@ -111,6 +110,18 @@ The step sequencer records notes into a 4-second loop divided into 16 grid posit
 - **Snap-to-grid** quantizes note placement to 16th-note divisions
 
 Notes appear as draggable blocks in the grid. The playhead animates during playback via `requestAnimationFrame`. Notes are scheduled 100ms ahead using Web Audio's precise timing.
+
+The sequencer **toggle** mutes and unmutes the layer without clearing notes. The status line shows `N notes (off)` when muted so the pattern is preserved.
+
+## Preset Sharing
+
+The full app state encodes automatically into the URL as a `?p=` parameter (debounced 500ms, using `history.replaceState`). Sharing a preset is as simple as copying the address bar.
+
+**What is serialized:** effect control values, bypass states, chord layer settings (chord name, vol, tone, pitch, length, crossfade), sequencer layer settings, snap toggle, and all sequencer notes.
+
+**What is not serialized:** uploaded audio files (binary data cannot be encoded in a URL). Layers loaded from uploaded files are silently omitted; they load empty when the URL is restored.
+
+Opening a URL with a `?p=` parameter restores the full preset on load. Malformed parameters fail silently and load defaults.
 
 ## Browser Support
 

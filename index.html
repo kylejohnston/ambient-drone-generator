@@ -11,28 +11,7 @@
 
   <main class="app mode-create">
 
-    <!-- Mode selector (hidden, kept for JS compatibility) -->
-    <div class="mode-selector" role="tablist" aria-label="Mode selection" hidden>
-      <button role="tab" id="tab-easy" aria-selected="false" aria-controls="panel-easy" class="mode-tab">Easy</button>
-      <button role="tab" id="tab-create" aria-selected="true" aria-controls="panel-create" class="mode-tab active">Create</button>
-    </div>
-
-    <!-- Easy mode panel (hidden, kept for JS compatibility) -->
-    <section id="panel-easy" role="tabpanel" aria-labelledby="tab-easy" class="mode-panel" hidden>
-      <div class="mood-control">
-        <div class="mood-header">
-          <span class="mood-label-left">Dark</span>
-          <span class="mood-title">Mood</span>
-          <span class="mood-label-right">Bright</span>
-        </div>
-        <input type="range" id="mood-slider" class="mood-slider" min="0" max="100" value="50">
-        <p class="mood-description" id="mood-description">Balanced warmth with gentle movement</p>
-      </div>
-      <button id="generate-btn" class="generate-btn">Generate New Drone</button>
-    </section>
-
-    <!-- Create mode panel -->
-    <section id="panel-create" role="tabpanel" aria-labelledby="tab-create" class="mode-panel active">
+    <section id="panel-create">
       <div class="rack">
 
         <!-- Row 1: Header + Effects -->
