@@ -405,6 +405,79 @@ function encodeWords(state) {
   return bytesToWords(stateToBytes(state));
 }
 
+/** Convert a hyphen-joined BIP39 word string back to a Uint8Array.
+ *  Throws if any word is not in the BIP39 list. */
+function wordsToBytes(wordString) {
+  const words = wordString.split('-');
+  const w = new BitWriter();
+  for (const word of words) {
+    const idx = BIP39.indexOf(word);
+    if (idx === -1) throw new Error(`Unknown word: ${word}`);
+    w.write(idx, 11);
+  }
+  return w.flush();
+}
+
+/** Decode a hyphen-joined BIP39 word string to a preset object.
+ *  Returns null if the string is malformed or version is unrecognised. */
+function decodeWords(wordString) {
+  const bytes = wordsToBytes(wordString);
+  const r = new BitReader(bytes);
+
+  const version = r.read(3);
+  if (version !== 1) return null;
+
+  // Controls
+  const movement = r.read(7);
+  const grit     = r.read(7);
+  const depth    = r.read(7);
+  const space    = r.read(6);
+
+  // Bypass flags
+  const bypass = [r.read(1), r.read(1), r.read(1), r.read(1)];
+
+  // Chord layers (L0 and L1)
+  const layers = [];
+  for (let i = 0; i < 2; i++) {
+    const present = r.read(1);
+    if (!present) {
+      layers.push(null);
+      continue;
+    }
+    const chord  = CHORD_KEYS[r.read(4)];
+    const vol    = r.read(7);
+    const filter = r.read(7);
+    const pitch  = r.read(6) - 24;   // decode offset
+    const length = r.read(4) + 2;    // decode offset
+    const fade   = r.read(5) / 10;   // decode scale
+    layers.push({ ch: chord, v: vol, f: filter, p: pitch, l: length, x: fade });
+  }
+
+  // Sequencer layer (L2)
+  const seqVol    = r.read(7);
+  const seqFilter = r.read(7);
+  const seqPitch  = r.read(6) - 24;
+  layers.push({ v: seqVol, f: seqFilter, p: seqPitch });
+
+  // Sequencer data
+  const snap      = r.read(1) === 1;
+  const noteCount = r.read(4);
+  const notes     = [];
+  for (let i = 0; i < noteCount; i++) {
+    const noteIdx = r.read(4);
+    const timeIdx = r.read(6);
+    notes.push([NOTE_KEYS[noteIdx], timeIdx / 16]);
+  }
+
+  return {
+    v: 1,
+    c: [movement, grit, depth, space],
+    b: bypass,
+    l: layers,
+    sq: { sn: snap ? 1 : 0, n: notes }
+  };
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 
 export function encodeState(state) {
@@ -413,7 +486,7 @@ export function encodeState(state) {
 
 export function decodeState(encoded) {
   try {
-    if (encoded.includes('-')) return null; // word decode not yet implemented
+    if (encoded.includes('-')) return decodeWords(encoded);
     return JSON.parse(atob(encoded));
   } catch {
     return null;
