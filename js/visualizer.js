@@ -72,7 +72,7 @@ export class Visualizer {
         requestAnimationFrame(fade);
       } else {
         this.brightness = 0;
-        this.ctx.fillStyle = '#0a0a0f';
+        this.ctx.fillStyle = '#161513';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
       }
     };
@@ -155,7 +155,7 @@ export class Visualizer {
 
     gradient.addColorStop(0, `hsl(${hue1}, ${saturation}%, ${lightness1}%)`);
     gradient.addColorStop(0.5, `hsl(${hue2}, ${saturation}%, ${lightness2}%)`);
-    gradient.addColorStop(1, '#0a0a0f');
+    gradient.addColorStop(1, '#161513');
 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);

@@ -21,11 +21,12 @@ export class ModulationSystem {
     if (!ctx) return;
 
     // Create multiple LFOs at non-synced rates (key to organic movement)
+    // Slower rates for more gradual, subtle evolution
     const lfoConfigs = [
-      { rate: 0.07, shape: 'sine' },      // Very slow
-      { rate: 0.13, shape: 'sine' },      // Slow
-      { rate: 0.23, shape: 'triangle' },  // Medium-slow
-      { rate: 0.41, shape: 'sine' },      // Medium
+      { rate: 0.03, shape: 'sine' },      // Very slow (was 0.07)
+      { rate: 0.07, shape: 'sine' },      // Slow (was 0.13)
+      { rate: 0.11, shape: 'triangle' },  // Medium-slow (was 0.23)
+      { rate: 0.19, shape: 'sine' },      // Medium (was 0.41)
     ];
 
     this.lfos = lfoConfigs.map(config => {
@@ -50,7 +51,10 @@ export class ModulationSystem {
    * Set modulation depth (0-100)
    */
   setMovement(value) {
-    this.depth = value / 100;
+    // Apply curve to make modulation more subtle overall
+    // Low values have minimal effect, high values are still controlled
+    const normalized = value / 100;
+    this.depth = normalized * normalized * 0.6; // Quadratic curve, max 60% depth
     this.updateDepths();
   }
 
@@ -94,10 +98,6 @@ export class ModulationSystem {
     // Connect LFO -> scaling gain -> parameter
     lfo.gain.connect(scalingGain);
     scalingGain.connect(param);
-
-    // Set the base value to the center of the range
-    const centerValue = config.min + range / 2;
-    param.setValueAtTime(centerValue, ctx.currentTime);
 
     // Store for later updates
     this.targets.set(param, {

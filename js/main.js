@@ -10,10 +10,11 @@ import {
   resumeContext,
   createGain
 } from './audio-engine.js';
-import { GranularProcessor } from './granular.js';
 import { ModulationSystem } from './modulation.js';
 import { EffectsChain } from './effects.js';
 import { Visualizer } from './visualizer.js';
+import { VerticalFader } from './fader.js';
+import { encodeState, decodeState, getUrlParam } from './url-state.js';
 
 // Note frequencies (Hz)
 const NOTE_FREQUENCIES = {
@@ -53,39 +54,33 @@ const KEY_MAP = {
 };
 
 // Sequencer constants
-const LOOP_LENGTH = 4.0; // 4 seconds
+const LOOP_LENGTH = 4.0;   // 4 seconds
 const GRID_DIVISIONS = 16; // 16th notes
-const NOTE_DURATION = 0.4; // How long each triggered note sounds
+const NOTE_DURATION = 3.5; // How long each triggered note sounds (long for ambient blend)
 
 // Application state
 const state = {
   isPlaying: false,
-  mode: 'easy',
   layers: [
-    { type: null, chord: null, buffer: null, name: 'Empty', volume: 80 },
-    { type: null, chord: null, buffer: null, name: 'Empty', volume: 80 },
-    { type: 'sequencer', chord: null, buffer: null, name: 'Sequencer', volume: 100 }
+    { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 8, pitch: 0, length: 10, fade: 2 },
+    { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 50, pitch: 0, length: 6, fade: 1 },
+    { type: 'sequencer', chord: null, buffer: null, name: 'Sequencer', volume: 100, filter: 33, pitch: -11 }
   ],
   controls: {
-    texture: 40,
-    drift: 30,
-    movement: 50,
-    warmth: 40,
-    grit: 20,
-    depth: 40,
-    space: 70
+    movement: 56, // Modulation amount
+    grit: 24,     // Amount of distortion/saturation
+    depth: 40,    // Delay
+    space: 60     // Reverb time in seconds
   },
   bypass: {
-    granular: false,
     modulation: false,
-    filter: false,
     grit: false,
-    delay: false,
+    delay: true,
     reverb: false
   },
   sequencer: {
     snap: true,
-    granular: false, // Route through granular processing
+    muted: false,
     notes: [], // { id, note, time }
     loopStartTime: 0,
     nextNoteId: 0,
@@ -97,15 +92,134 @@ const state = {
 };
 
 // Audio components
-let granularProcessors = [];
 let layerGains = [null, null, null]; // Gain nodes for each layer
+let layerFilters = [null, null, null]; // Per-layer filter nodes
+let layerSources = [null, null]; // Looping buffer sources for layers 0 and 1
 let effects = null;
 let modulation = null;
 let visualizer = null;
 let sequencerOutput = null;
-let sequencerGranular = null; // Optional granular processor for sequencer
-let sequencerGranularBuffer = null; // Buffer for sequencer granular
 let playheadAnimationFrame = null;
+
+// ============ URL Preset Sharing ============
+
+let _urlUpdateTimer = null;
+
+/**
+ * Debounced: update the URL bar with the current encoded state.
+ * Uses replaceState to avoid polluting browser history.
+ */
+function scheduleUrlUpdate() {
+  clearTimeout(_urlUpdateTimer);
+  _urlUpdateTimer = setTimeout(() => {
+    const encoded = encodeState(state);
+    history.replaceState(null, '', `?p=${encoded}`);
+  }, 500);
+}
+
+/**
+ * Apply a decoded preset object to the app state and UI.
+ * Only chord layers are restored; uploaded-file layers load empty.
+ */
+function applyPreset(preset) {
+  if (!preset || preset.v !== 1) return;
+
+  const CONTROL_ORDER = ['movement', 'grit', 'depth', 'space'];
+  const BYPASS_ORDER  = ['modulation', 'grit', 'delay', 'reverb'];
+
+  // Controls
+  CONTROL_ORDER.forEach((name, i) => {
+    const val = preset.c?.[i];
+    if (val == null) return;
+    const input = document.getElementById(name);
+    if (!input) return;
+    input.value = val;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  // Bypass states
+  BYPASS_ORDER.forEach((stage, i) => {
+    const bypassed = preset.b?.[i] === 1;
+    const toggle = document.querySelector(`.bypass-toggle[data-bypass="${stage}"]`);
+    if (!toggle) return;
+    const stageEl = toggle.closest('.control-stage');
+    if (bypassed) {
+      toggle.classList.remove('active');
+      stageEl?.classList.add('bypassed');
+    } else {
+      toggle.classList.add('active');
+      stageEl?.classList.remove('bypassed');
+    }
+    toggle.setAttribute('aria-pressed', bypassed ? 'true' : 'false');
+    state.bypass[stage] = bypassed;
+  });
+
+  // Layer params and chord selection
+  preset.l?.forEach((layerData, i) => {
+    if (layerData == null) return;
+
+    const volInput = document.querySelector(`.layer-vol-slider[data-layer="${i}"]`);
+    if (volInput && layerData.v != null) {
+      volInput.value = layerData.v;
+      volInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    const filterInput = document.querySelector(`.layer-filter-slider[data-layer="${i}"]`);
+    if (filterInput && layerData.f != null) {
+      filterInput.value = layerData.f;
+      filterInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    const pitchInput = document.querySelector(`.layer-pitch-slider[data-layer="${i}"]`);
+    if (pitchInput && layerData.p != null) {
+      pitchInput.value = layerData.p;
+      pitchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    if (i < 2) {
+      // Length and fade must be set before the chord change event so
+      // generateChordBuffer picks up the correct duration/crossfade values
+      const lengthInput = document.querySelector(`.layer-length-slider[data-layer="${i}"]`);
+      if (lengthInput && layerData.l != null) {
+        lengthInput.value = layerData.l;
+        lengthInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      const fadeInput = document.querySelector(`.layer-fade-slider[data-layer="${i}"]`);
+      if (fadeInput && layerData.x != null) {
+        fadeInput.value = layerData.x;
+        fadeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      // Trigger async chord generation via the existing bindLayers listener
+      if (layerData.ch) {
+        const chordSelect = document.querySelector(`.layer-chord[data-layer="${i}"]`);
+        if (chordSelect) {
+          chordSelect.value = layerData.ch;
+          chordSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    }
+  });
+
+  // Sequencer snap and notes
+  if (preset.sq) {
+    const snap = preset.sq.sn === 1;
+    state.sequencer.snap = snap;
+    const snapToggle = document.getElementById('quantize-toggle');
+    if (snapToggle) snapToggle.checked = snap;
+
+    if (Array.isArray(preset.sq.n)) {
+      state.sequencer.notes = preset.sq.n.map(([note, time]) => ({
+        id: state.sequencer.nextNoteId++,
+        note,
+        time
+      }));
+    }
+
+    updateSequencerUI();
+  }
+}
 
 /**
  * Initialize the application
@@ -114,68 +228,30 @@ function init() {
   const canvas = document.getElementById('visualizer');
   visualizer = new Visualizer(canvas);
 
-  // Set initial mode class
-  document.querySelector('.app').classList.add('mode-easy');
-
-  bindModeSelector();
   bindControls();
+  bindLayerParams();
   bindBypassToggles();
   bindPlayButton();
   bindLayers();
   bindLayerVolumes();
   bindSequencer();
-  bindMoodSlider();
-  bindGenerateButton();
 
   startPlayheadAnimation();
-}
 
-// ============ Mode & Controls ============
-
-function bindModeSelector() {
-  const tabs = document.querySelectorAll('.mode-tab');
-  const panels = document.querySelectorAll('.mode-panel');
-  const app = document.querySelector('.app');
-  const playBtn = document.getElementById('play-btn');
-
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const targetId = tab.getAttribute('aria-controls');
-      const newMode = targetId === 'panel-easy' ? 'easy' : 'create';
-
-      // If switching modes and currently playing, stop playback
-      if (newMode !== state.mode && state.isPlaying) {
-        stopDrone();
-        playBtn.classList.remove('playing');
-        playBtn.setAttribute('aria-label', 'Play drone');
-      }
-
-      tabs.forEach(t => {
-        t.classList.remove('active');
-        t.setAttribute('aria-selected', 'false');
-      });
-      tab.classList.add('active');
-      tab.setAttribute('aria-selected', 'true');
-
-      panels.forEach(panel => {
-        panel.classList.remove('active');
-        panel.hidden = true;
-      });
-      const targetPanel = document.getElementById(targetId);
-      targetPanel.classList.add('active');
-      targetPanel.hidden = false;
-
-      state.mode = newMode;
-
-      // Toggle controls visibility based on mode
-      app.classList.toggle('mode-easy', state.mode === 'easy');
-      app.classList.toggle('mode-create', state.mode === 'create');
-    });
+  // Initialize vertical faders for all data-fader inputs
+  document.querySelectorAll('input[data-fader]').forEach(input => {
+    new VerticalFader(input);
   });
+
+  // Restore preset from URL if present
+  const saved = getUrlParam();
+  if (saved) applyPreset(decodeState(saved));
 }
+
+// ============ Controls ============
 
 function bindControls() {
-  const controlNames = ['texture', 'drift', 'movement', 'warmth', 'grit', 'depth', 'space'];
+  const controlNames = ['movement', 'grit', 'depth', 'space'];
 
   controlNames.forEach(name => {
     const slider = document.getElementById(name);
@@ -184,8 +260,145 @@ function bindControls() {
     slider.addEventListener('input', (e) => {
       state.controls[name] = parseInt(e.target.value, 10);
       updateParameter(name, state.controls[name]);
+
+      // Update reverb time display
+      if (name === 'space') {
+        const output = document.getElementById('space-value');
+        if (output) output.textContent = `${state.controls[name]}s`;
+      }
+
+      scheduleUrlUpdate();
     });
   });
+}
+
+function bindLayerParams() {
+  // Per-layer filter (Tone)
+  document.querySelectorAll('.layer-filter-slider').forEach(slider => {
+    const layerIndex = parseInt(slider.dataset.layer, 10);
+
+    slider.addEventListener('input', (e) => {
+      const value = parseInt(e.target.value, 10);
+      state.layers[layerIndex].filter = value;
+      updateLayerFilter(layerIndex, value);
+      scheduleUrlUpdate();
+    });
+  });
+
+  // Per-layer pitch
+  document.querySelectorAll('.layer-pitch-slider').forEach(slider => {
+    const layerIndex = parseInt(slider.dataset.layer, 10);
+
+    slider.addEventListener('input', (e) => {
+      const value = parseInt(e.target.value, 10);
+      state.layers[layerIndex].pitch = value;
+      updateLayerPitch(layerIndex, value);
+
+      // Update pitch display
+      const output = document.getElementById(`layer-${layerIndex}-pitch-value`);
+      if (output) {
+        output.textContent = value > 0 ? `+${value}` : value;
+      }
+
+      scheduleUrlUpdate();
+    });
+  });
+
+  // Per-layer length (for generated chords)
+  document.querySelectorAll('.layer-length-slider').forEach(slider => {
+    const layerIndex = parseInt(slider.dataset.layer, 10);
+
+    slider.addEventListener('input', async (e) => {
+      const value = parseInt(e.target.value, 10);
+      state.layers[layerIndex].length = value;
+
+      // Update length display
+      const output = document.getElementById(`layer-${layerIndex}-length-value`);
+      if (output) {
+        output.textContent = `${value}s`;
+      }
+
+      // Regenerate buffer if layer has a chord selected
+      if (state.layers[layerIndex].chord) {
+        const buffer = await generateChordBuffer(state.layers[layerIndex].chord, layerIndex);
+        state.layers[layerIndex].buffer = buffer;
+        if (state.isPlaying) {
+          restartLayerSource(layerIndex);
+        }
+      }
+
+      scheduleUrlUpdate();
+    });
+  });
+
+  // Per-layer fade (crossfade for loop smoothing)
+  document.querySelectorAll('.layer-fade-slider').forEach(slider => {
+    const layerIndex = parseInt(slider.dataset.layer, 10);
+
+    slider.addEventListener('input', async (e) => {
+      const value = parseFloat(e.target.value);
+      state.layers[layerIndex].fade = value;
+
+      // Update fade display
+      const output = document.getElementById(`layer-${layerIndex}-fade-value`);
+      if (output) {
+        output.textContent = `${value.toFixed(1)}s`;
+      }
+
+      // Regenerate buffer if layer has a chord (fade is baked into generated buffer)
+      if (state.layers[layerIndex].chord) {
+        const buffer = await generateChordBuffer(state.layers[layerIndex].chord, layerIndex);
+        state.layers[layerIndex].buffer = buffer;
+        if (state.isPlaying) {
+          restartLayerSource(layerIndex);
+        }
+      }
+      // Note: For uploaded files, crossfade was applied on upload.
+      // Changing fade after upload would require storing the original buffer.
+
+      scheduleUrlUpdate();
+    });
+  });
+}
+
+/**
+ * Map a 0-100 tone value to a filter frequency (Hz)
+ */
+function toneToFreq(value) {
+  return 200 * Math.pow(8000 / 200, value / 100);
+}
+
+/**
+ * Apply filter value to a filter node (0-100 maps to frequency)
+ */
+function applyFilterValue(filter, value) {
+  filter.frequency.value = toneToFreq(value);
+}
+
+/**
+ * Update per-layer filter (Tone: 0-100 maps to frequency)
+ */
+function updateLayerFilter(index, value) {
+  if (!state.isPlaying || !layerFilters[index]) return;
+
+  const ctx = getAudioContext();
+  layerFilters[index].frequency.setTargetAtTime(toneToFreq(value), ctx.currentTime, 0.1);
+}
+
+/**
+ * Update per-layer pitch (semitones)
+ */
+function updateLayerPitch(index, semitones) {
+  if (!state.isPlaying) return;
+
+  const playbackRate = Math.pow(2, semitones / 12);
+
+  // Update source playback rate
+  if (index < 2 && layerSources[index]) {
+    layerSources[index].playbackRate.value = playbackRate;
+  }
+
+  // For sequencer (index 2), pitch affects note frequencies - handled in triggerNote
 }
 
 function bindBypassToggles() {
@@ -200,6 +413,7 @@ function bindBypassToggles() {
 
       state.bypass[stage] = isActive;
       applyBypass(stage, isActive);
+      scheduleUrlUpdate();
     });
   });
 }
@@ -208,16 +422,8 @@ function applyBypass(stage, bypassed) {
   if (!state.isPlaying) return;
 
   switch (stage) {
-    case 'granular':
-      granularProcessors.forEach(gp => {
-        if (gp.grainOutput) gp.grainOutput.gain.value = bypassed ? 0 : 1;
-      });
-      break;
     case 'modulation':
       modulation?.setMovement(bypassed ? 0 : state.controls.movement);
-      break;
-    case 'filter':
-      effects?.setFilterBypass(bypassed);
       break;
     case 'grit':
       effects?.setGritBypass(bypassed);
@@ -235,23 +441,8 @@ function updateParameter(name, value) {
   if (!state.isPlaying) return;
 
   switch (name) {
-    case 'texture':
-      if (!state.bypass.granular) {
-        granularProcessors.forEach(gp => gp.setTexture(value));
-        sequencerGranular?.setTexture(value);
-      }
-      break;
-    case 'drift':
-      if (!state.bypass.granular) {
-        granularProcessors.forEach(gp => gp.setDrift(value));
-        sequencerGranular?.setDrift(value);
-      }
-      break;
     case 'movement':
       if (!state.bypass.modulation) modulation?.setMovement(value);
-      break;
-    case 'warmth':
-      effects?.setWarmth(value);
       break;
     case 'grit':
       effects?.setGrit(value);
@@ -277,8 +468,11 @@ function bindPlayButton() {
       playBtn.setAttribute('aria-label', 'Play drone');
     } else {
       await startDrone();
-      playBtn.classList.add('playing');
-      playBtn.setAttribute('aria-label', 'Pause drone');
+      // Only show playing state if something actually started
+      if (state.isPlaying) {
+        playBtn.classList.add('playing');
+        playBtn.setAttribute('aria-label', 'Pause drone');
+      }
     }
   });
 }
@@ -290,33 +484,59 @@ function bindLayers() {
     const layerIndex = parseInt(select.dataset.layer, 10);
     if (layerIndex === 2) return;
 
+    const fileInput = document.querySelector(`.layer-upload[data-layer="${layerIndex}"]`);
+
     select.addEventListener('change', async (e) => {
-      const chord = e.target.value;
-      if (chord) {
+      const value = e.target.value;
+
+      if (value === 'upload') {
+        // Trigger file picker
+        fileInput.click();
+        // Reset select to previous value (will be updated when file loads)
+        const layer = state.layers[layerIndex];
+        if (layer.type === 'upload') {
+          // Keep showing the filename option
+          select.value = `file:${layer.name}`;
+        } else if (layer.type === 'chord') {
+          select.value = layer.chord;
+        } else {
+          select.value = '';
+        }
+        return;
+      }
+
+      if (value && !value.startsWith('file:')) {
+        // Chord selected
         await initAudioContext();
-        const buffer = await generateChordBuffer(chord);
-        setLayer(layerIndex, 'chord', chord, buffer);
-      } else {
+        const buffer = await generateChordBuffer(value, layerIndex);
+        setLayer(layerIndex, 'chord', value, buffer);
+        // Remove any file option that might exist
+        removeFileOption(select);
+      } else if (!value) {
         clearLayer(layerIndex);
+        removeFileOption(select);
       }
     });
-  });
 
-  document.querySelectorAll('.layer-upload').forEach(input => {
-    const layerIndex = parseInt(input.dataset.layer, 10);
-    if (layerIndex === 2) return;
-
-    input.addEventListener('change', async (e) => {
+    fileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       try {
         await initAudioContext();
         const arrayBuffer = await file.arrayBuffer();
-        const buffer = await decodeAudioFile(arrayBuffer);
+        const rawBuffer = await decodeAudioFile(arrayBuffer);
+        // Apply crossfade for smooth looping
+        const fadeTime = state.layers[layerIndex].fade || 1;
+        const buffer = fadeTime > 0 ? applyCrossfade(rawBuffer, fadeTime) : rawBuffer;
         setLayer(layerIndex, 'upload', file.name, buffer);
+
+        // Add filename as option and select it
+        updateSelectWithFilename(select, file.name);
       } catch (error) {
         console.error('Error loading audio file:', error);
       }
+      // Reset file input so same file can be re-selected
+      fileInput.value = '';
     });
   });
 
@@ -330,31 +550,90 @@ function bindLayers() {
       }
     });
   });
+
+  // Layer toggle acts as power/clear button
+  document.querySelectorAll('.layer-toggle[data-layer]').forEach(btn => {
+    const layerIndex = parseInt(btn.dataset.layer, 10);
+    btn.addEventListener('click', () => {
+      if (layerIndex === 2) {
+        if (state.sequencer.notes.length > 0 || state.sequencer.muted) {
+          state.sequencer.muted = !state.sequencer.muted;
+          updateSequencerUI();
+        }
+        return;
+      }
+      // Chord layers: clear if loaded, or auto-select first chord to turn on
+      if (state.layers[layerIndex].type) {
+        clearLayer(layerIndex);
+      } else {
+        const chordSelect = document.querySelector(`.layer-chord[data-layer="${layerIndex}"]`);
+        if (chordSelect) {
+          chordSelect.value = 'Cmaj7';
+          chordSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    });
+  });
 }
 
 function setLayer(index, type, name, buffer) {
-  const volume = state.layers[index].volume; // Preserve volume
-  state.layers[index] = { type, chord: type === 'chord' ? name : null, buffer, name, volume };
+  // Preserve per-layer settings
+  const { volume, filter, pitch, length, fade } = state.layers[index];
+  state.layers[index] = {
+    type,
+    chord: type === 'chord' ? name : null,
+    buffer,
+    name,
+    volume,
+    filter,
+    pitch,
+    length,
+    fade
+  };
   updateLayerUI(index);
 
-  if (state.isPlaying && granularProcessors[index]) {
-    granularProcessors[index].stop();
-    granularProcessors[index].setBuffer(buffer);
-    granularProcessors[index].start();
+  if (state.isPlaying && index < 2) {
+    restartLayerSource(index);
   }
+
+  scheduleUrlUpdate();
 }
 
 function clearLayer(index) {
-  const volume = state.layers[index].volume; // Preserve volume
-  state.layers[index] = { type: null, chord: null, buffer: null, name: 'Empty', volume };
+  // Preserve per-layer settings
+  const { volume, filter, pitch, length, fade } = state.layers[index];
+  state.layers[index] = {
+    type: null,
+    chord: null,
+    buffer: null,
+    name: 'Empty',
+    volume,
+    filter,
+    pitch,
+    length,
+    fade
+  };
   updateLayerUI(index);
 
   const chordSelect = document.querySelector(`.layer-chord[data-layer="${index}"]`);
-  if (chordSelect) chordSelect.value = '';
-
-  if (state.isPlaying && granularProcessors[index]) {
-    granularProcessors[index].stop();
+  if (chordSelect) {
+    removeFileOption(chordSelect);
+    chordSelect.value = '';
   }
+
+  if (state.isPlaying && index < 2) {
+    // Stop source
+    if (layerSources[index]) {
+      try {
+        layerSources[index].stop();
+      } catch (e) {
+        // Already stopped
+      }
+      layerSources[index] = null;
+    }
+  }
+
+  scheduleUrlUpdate();
 }
 
 function updateLayerUI(index) {
@@ -376,6 +655,42 @@ function updateLayerUI(index) {
   }
 }
 
+/**
+ * Add a filename option to the select and choose it
+ */
+function updateSelectWithFilename(select, filename) {
+  // Remove any existing file option
+  removeFileOption(select);
+
+  // Truncate long filenames for display
+  const displayName = filename.length > 20
+    ? filename.slice(0, 17) + '...'
+    : filename;
+
+  // Create new option for the file
+  const option = document.createElement('option');
+  option.value = `file:${filename}`;
+  option.textContent = `📁 ${displayName}`;
+  option.dataset.isFile = 'true';
+
+  // Insert before the "Upload file..." option
+  const uploadOption = select.querySelector('option[value="upload"]');
+  select.insertBefore(option, uploadOption);
+
+  // Select the new option
+  select.value = `file:${filename}`;
+}
+
+/**
+ * Remove any file option from the select
+ */
+function removeFileOption(select) {
+  const fileOption = select.querySelector('option[data-is-file="true"]');
+  if (fileOption) {
+    fileOption.remove();
+  }
+}
+
 function bindLayerVolumes() {
   document.querySelectorAll('.layer-vol-slider').forEach(slider => {
     const layerIndex = parseInt(slider.dataset.layer, 10);
@@ -384,6 +699,7 @@ function bindLayerVolumes() {
       const volume = parseInt(e.target.value, 10);
       state.layers[layerIndex].volume = volume;
       updateLayerVolume(layerIndex, volume);
+      scheduleUrlUpdate();
     });
   });
 }
@@ -396,16 +712,9 @@ function updateLayerVolume(index, volume) {
 
   const gain = volume / 100;
 
-  if (index === 2) {
-    // Sequencer layer
-    if (sequencerOutput) {
-      sequencerOutput.gain.setTargetAtTime(gain, ctx.currentTime, 0.05);
-    }
-  } else {
-    // Granular layers
-    if (layerGains[index]) {
-      layerGains[index].gain.setTargetAtTime(gain, ctx.currentTime, 0.05);
-    }
+  // All layers now use layerGains for volume control
+  if (layerGains[index]) {
+    layerGains[index].gain.setTargetAtTime(gain, ctx.currentTime, 0.05);
   }
 }
 
@@ -414,18 +723,12 @@ function updateLayerVolume(index, volume) {
 function bindSequencer() {
   const keyboard = document.getElementById('keyboard');
   const snapToggle = document.getElementById('quantize-toggle');
-  const granularToggle = document.getElementById('seq-granular-toggle');
   const grid = document.getElementById('sequencer-grid');
 
   // Snap toggle
   snapToggle?.addEventListener('change', (e) => {
     state.sequencer.snap = e.target.checked;
-  });
-
-  // Granular toggle
-  granularToggle?.addEventListener('change', (e) => {
-    state.sequencer.granular = e.target.checked;
-    updateSequencerGranular();
+    scheduleUrlUpdate();
   });
 
   // Keyboard mouse input
@@ -441,7 +744,7 @@ function bindSequencer() {
 
   // Keyboard input
   document.addEventListener('keydown', async (e) => {
-    if (e.repeat || state.mode !== 'create') return;
+    if (e.repeat) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
 
     const note = KEY_MAP[e.key.toLowerCase()];
@@ -517,7 +820,6 @@ function removeNote(id) {
 function clearSequencer() {
   state.sequencer.notes = [];
   updateSequencerUI();
-  updateSequencerLayerUI();
 }
 
 function updateSequencerUI() {
@@ -539,12 +841,12 @@ function updateSequencerUI() {
     block.dataset.noteId = noteData.id;
     block.textContent = NOTE_NAMES[noteData.note];
 
-    // Position
+    // Position: notes fill their column (between grid lines)
     const leftPercent = (noteData.time / LOOP_LENGTH) * 100;
     const row = noteRows.get(noteData.id) || 0;
-    const topOffset = 10 + row * 32;
+    const topOffset = 7 + row * 38;
 
-    block.style.left = `calc(${leftPercent}% - 18px)`;
+    block.style.left = `calc(${leftPercent}% + 2px)`;
     block.style.top = `${topOffset}px`;
 
     // Delete button
@@ -562,14 +864,19 @@ function updateSequencerUI() {
 
   // Update layer status
   if (state.sequencer.notes.length > 0) {
-    layerEl?.classList.add('has-content');
-    statusEl.textContent = `${state.sequencer.notes.length} note${state.sequencer.notes.length > 1 ? 's' : ''}`;
+    const count = state.sequencer.notes.length;
+    layerEl?.classList.toggle('has-content', !state.sequencer.muted);
+    statusEl.textContent = state.sequencer.muted
+      ? `${count} note${count > 1 ? 's' : ''} (off)`
+      : `${count} note${count > 1 ? 's' : ''}`;
     if (clearBtn) clearBtn.hidden = false;
   } else {
     layerEl?.classList.remove('has-content');
     statusEl.textContent = 'Play notes below to record';
     if (clearBtn) clearBtn.hidden = true;
   }
+
+  scheduleUrlUpdate();
 }
 
 function assignNoteRows(notes) {
@@ -588,28 +895,12 @@ function assignNoteRows(notes) {
       });
       if (!conflict) break;
       row++;
-      if (row > 1) { row = 0; break; } // Max 2 rows
+      if (row > 2) { row = 0; break; } // Max 3 rows
     }
     rowMap.set(note.id, row);
   });
 
   return rowMap;
-}
-
-function updateSequencerLayerUI() {
-  const layerEl = document.querySelector('.sequencer-layer');
-  const statusEl = document.getElementById('seq-status');
-  const clearBtn = layerEl?.querySelector('.layer-clear');
-
-  if (state.sequencer.notes.length > 0) {
-    layerEl?.classList.add('has-content');
-    statusEl.textContent = `${state.sequencer.notes.length} note${state.sequencer.notes.length > 1 ? 's' : ''}`;
-    if (clearBtn) clearBtn.hidden = false;
-  } else {
-    layerEl?.classList.remove('has-content');
-    statusEl.textContent = 'Play notes below to record';
-    if (clearBtn) clearBtn.hidden = true;
-  }
 }
 
 // ============ Drag and Drop ============
@@ -655,7 +946,7 @@ function handleGridMouseMove(e) {
 
   // Update visual position
   const leftPercent = (newTime / LOOP_LENGTH) * 100;
-  block.style.left = `calc(${leftPercent}% - 18px)`;
+  block.style.left = `calc(${leftPercent}% + 2px)`;
 
   // Store pending time
   state.dragState.pendingTime = newTime;
@@ -713,16 +1004,23 @@ function playNotePreview(note) {
   const freq = NOTE_FREQUENCIES[note];
   const now = ctx.currentTime;
 
-  // Create oscillator for preview
+  // Create soft pad preview sound
   const osc = ctx.createOscillator();
   osc.type = 'sine';
   osc.frequency.value = freq;
 
+  const osc2 = ctx.createOscillator();
+  osc2.type = 'triangle';
+  osc2.frequency.value = freq;
+
+  // Soft envelope: gentle attack and release
   const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.15, now);
-  gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.12, now + 0.08);  // Soft attack
+  gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);  // Gentle fade
 
   osc.connect(gain);
+  osc2.connect(gain);
 
   // Connect to effects if playing, otherwise to destination
   if (sequencerOutput) {
@@ -732,11 +1030,13 @@ function playNotePreview(note) {
   }
 
   osc.start(now);
-  osc.stop(now + 0.3);
+  osc2.start(now);
+  osc.stop(now + 0.6);
+  osc2.stop(now + 0.6);
 }
 
 function scheduleSequencerNotes() {
-  if (!state.isPlaying || state.sequencer.notes.length === 0) return;
+  if (!state.isPlaying || state.sequencer.notes.length === 0 || state.sequencer.muted) return;
 
   const ctx = getAudioContext();
   const now = ctx.currentTime;
@@ -775,227 +1075,87 @@ function scheduleSequencerNotes() {
 
 function triggerNote(note, time, noteId) {
   const ctx = getAudioContext();
-  const freq = NOTE_FREQUENCIES[note];
+  const baseFreq = NOTE_FREQUENCIES[note];
 
-  // When granular is ON, notes sustain longer and go through granular processing
-  const duration = state.sequencer.granular ? 1.5 : NOTE_DURATION;
-  const attackTime = state.sequencer.granular ? 0.1 : 0.02;
-  const peakGain = state.sequencer.granular ? 0.08 : 0.12;
+  // Apply pitch shift from layer 2 (sequencer)
+  const pitchShift = state.layers[2].pitch || 0;
+  const pitchMultiplier = Math.pow(2, pitchShift / 12);
+  const freq = baseFreq * pitchMultiplier;
 
-  // Create rich oscillator sound
+  // Ambient pad-style envelope: slow attack, long sustain, gentle release
+  const duration = NOTE_DURATION;
+  const attackTime = 0.4;  // Slow fade in
+  const releaseTime = duration * 0.4;  // Long fade out
+  const peakGain = 0.06;  // Lower gain so overlapping notes don't clip
+
+  // Create pad sound with multiple oscillators
   const osc1 = ctx.createOscillator();
   osc1.type = 'sawtooth';
   osc1.frequency.value = freq;
 
   const osc2 = ctx.createOscillator();
   osc2.type = 'sawtooth';
-  osc2.frequency.value = freq * 1.003; // Slight detune
+  osc2.frequency.value = freq * 1.002; // Slight detune for warmth
+
+  const osc3 = ctx.createOscillator();
+  osc3.type = 'sawtooth';
+  osc3.frequency.value = freq * 0.998; // Detune other direction
 
   const subOsc = ctx.createOscillator();
   subOsc.type = 'sine';
   subOsc.frequency.value = freq / 2;
 
+  // Lowpass filter to soften the bright sawtooth sound
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 1200;  // Mellow cutoff
+  filter.Q.value = 0.5;
+
+  // Amplitude envelope: slow attack, sustain, slow release
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0, time);
   gain.gain.linearRampToValueAtTime(peakGain, time + attackTime);
-  gain.gain.exponentialRampToValueAtTime(peakGain * 0.7, time + duration * 0.3);
-  gain.gain.exponentialRampToValueAtTime(0.01, time + duration);
+  gain.gain.setValueAtTime(peakGain, time + duration - releaseTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
 
-  osc1.connect(gain);
-  osc2.connect(gain);
-  subOsc.connect(gain);
-
-  // Route through granular processor if enabled, otherwise direct to output
-  if (state.sequencer.granular && sequencerGranular) {
-    gain.connect(sequencerGranular.output);
-  } else {
-    gain.connect(sequencerOutput);
-  }
+  // Connect oscillators -> filter -> gain -> output
+  osc1.connect(filter);
+  osc2.connect(filter);
+  osc3.connect(filter);
+  subOsc.connect(gain);  // Sub goes direct (already smooth sine)
+  filter.connect(gain);
+  gain.connect(sequencerOutput);
 
   osc1.start(time);
   osc2.start(time);
+  osc3.start(time);
   subOsc.start(time);
   osc1.stop(time + duration + 0.1);
   osc2.stop(time + duration + 0.1);
+  osc3.stop(time + duration + 0.1);
   subOsc.stop(time + duration + 0.1);
 
-  // Visual feedback
+  // Visual feedback (gentle pulse during attack)
   setTimeout(() => {
     const block = document.querySelector(`.note-block[data-note-id="${noteId}"]`);
     if (block) {
       block.classList.add('playing');
-      setTimeout(() => block.classList.remove('playing'), 300);
+      setTimeout(() => block.classList.remove('playing'), 400);
     }
   }, (time - ctx.currentTime) * 1000);
 }
 
-/**
- * Update sequencer granular routing
- */
-async function updateSequencerGranular() {
-  if (!state.isPlaying) return;
-
-  if (state.sequencer.granular) {
-    // Create granular processor for sequencer if not exists
-    if (!sequencerGranular) {
-      // Generate a sustained tone buffer for the granular processor
-      const buffer = await generateSequencerGranularBuffer();
-      sequencerGranularBuffer = buffer;
-
-      sequencerGranular = new GranularProcessor(sequencerOutput);
-      sequencerGranular.setBuffer(buffer);
-
-      // Apply current texture/drift settings
-      sequencerGranular.setTexture(state.controls.texture);
-      sequencerGranular.setDrift(state.controls.drift);
-
-      sequencerGranular.start();
-    }
-  } else {
-    // Stop and disconnect granular processor
-    if (sequencerGranular) {
-      sequencerGranular.stop();
-      sequencerGranular = null;
-      sequencerGranularBuffer = null;
-    }
-  }
-}
-
-/**
- * Generate a buffer for sequencer granular processing
- */
-async function generateSequencerGranularBuffer() {
-  // Get unique notes from sequencer
-  const uniqueNotes = [...new Set(state.sequencer.notes.map(n => n.note))];
-
-  if (uniqueNotes.length === 0) {
-    // Default to a simple tone if no notes
-    uniqueNotes.push('C3');
-  }
-
-  const frequencies = uniqueNotes.map(n => NOTE_FREQUENCIES[n]);
-  return generateNotesBuffer(frequencies);
-}
-
-// ============ Mood Slider (Easy Mode) ============
-
-// Mood descriptions based on slider position
-const MOOD_DESCRIPTIONS = [
-  { max: 15, text: "Deep, dark, and minimal" },
-  { max: 30, text: "Mysterious shadows with subtle texture" },
-  { max: 45, text: "Warm darkness with gentle pulses" },
-  { max: 55, text: "Balanced warmth with gentle movement" },
-  { max: 70, text: "Bright and evolving textures" },
-  { max: 85, text: "Luminous layers with rich harmonics" },
-  { max: 100, text: "Radiant, expansive, and alive" }
-];
-
-// Chord preferences by mood (darker to brighter)
-const MOOD_CHORDS = {
-  dark: ['Dm7', 'Am7', 'Em7'],
-  mid: ['Cmaj7', 'Fmaj7', 'Am7', 'Dm7'],
-  bright: ['Cmaj7', 'Fmaj7', 'Bbmaj7', 'Csus2', 'Fsus2', 'Asus2']
-};
-
-function bindMoodSlider() {
-  const slider = document.getElementById('mood-slider');
-  const description = document.getElementById('mood-description');
-
-  slider.addEventListener('input', (e) => {
-    const mood = parseInt(e.target.value, 10);
-    updateMoodDescription(mood, description);
-
-    // Apply mood settings if playing
-    if (state.isPlaying) {
-      applyMoodSettings(mood);
-    }
-  });
-}
-
-function updateMoodDescription(mood, descEl) {
-  const desc = MOOD_DESCRIPTIONS.find(d => mood <= d.max) || MOOD_DESCRIPTIONS[MOOD_DESCRIPTIONS.length - 1];
-  descEl.textContent = desc.text;
-}
-
-function applyMoodSettings(mood) {
-  // Map mood (0-100) to control values
-  // Dark (0) = low warmth, low movement, high space, low texture
-  // Bright (100) = high warmth, high movement, moderate space, high texture
-
-  const controls = {
-    texture: lerp(15, 65, mood / 100),      // More granular as brighter
-    drift: lerp(10, 50, mood / 100),        // More pitch variation as brighter
-    movement: lerp(20, 75, mood / 100),     // More LFO activity as brighter
-    warmth: lerp(15, 75, mood / 100),       // Filter opens as brighter
-    grit: lerp(30, 15, mood / 100),         // More grit when darker
-    depth: lerp(50, 35, mood / 100),        // More delay when darker
-    space: lerp(85, 60, mood / 100)         // More reverb when darker
-  };
-
-  // Apply all controls
-  Object.entries(controls).forEach(([name, value]) => {
-    const intValue = Math.round(value);
-    state.controls[name] = intValue;
-    updateParameter(name, intValue);
-  });
-}
-
-function getMoodChord(mood) {
-  let chordPool;
-  if (mood < 35) {
-    chordPool = MOOD_CHORDS.dark;
-  } else if (mood < 65) {
-    chordPool = MOOD_CHORDS.mid;
-  } else {
-    chordPool = MOOD_CHORDS.bright;
-  }
-  return chordPool[Math.floor(Math.random() * chordPool.length)];
-}
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-// ============ Generate Button ============
-
-function bindGenerateButton() {
-  document.getElementById('generate-btn').addEventListener('click', async () => {
-    const moodSlider = document.getElementById('mood-slider');
-    const mood = parseInt(moodSlider.value, 10);
-
-    // Get chord based on mood
-    const randomChord = getMoodChord(mood);
-
-    // Apply mood-based control settings
-    applyMoodSettings(mood);
-
-    await initAudioContext();
-    const buffer = await generateChordBuffer(randomChord);
-
-    state.layers[0] = { type: 'chord', chord: randomChord, buffer, name: randomChord, volume: state.layers[0].volume };
-    state.layers[1] = { type: null, chord: null, buffer: null, name: 'Empty', volume: state.layers[1].volume };
-
-    if (state.isPlaying) {
-      stopDrone();
-      setTimeout(() => startDrone(), 100);
-    } else {
-      await startDrone();
-      const playBtn = document.getElementById('play-btn');
-      playBtn.classList.add('playing');
-      playBtn.setAttribute('aria-label', 'Pause drone');
-    }
-  });
-}
-
 // ============ Audio Generation ============
 
-async function generateChordBuffer(chordName) {
-  return generateNotesBuffer(CHORDS[chordName]);
+async function generateChordBuffer(chordName, layerIndex = 0) {
+  const layer = state.layers[layerIndex];
+  const duration = layer?.length || 6;
+  const fadeTime = layer?.fade || 1;
+  return generateNotesBuffer(CHORDS[chordName], duration, fadeTime);
 }
 
-async function generateNotesBuffer(frequencies) {
+async function generateNotesBuffer(frequencies, duration = 6, fadeTime = 1) {
   const ctx = getAudioContext();
-  const duration = 2;
   const sampleRate = ctx.sampleRate;
   const offlineCtx = new OfflineAudioContext(2, sampleRate * duration, sampleRate);
 
@@ -1029,7 +1189,84 @@ async function generateNotesBuffer(frequencies) {
     });
   });
 
-  return offlineCtx.startRendering();
+  const rawBuffer = await offlineCtx.startRendering();
+
+  // Apply crossfade for seamless looping
+  if (fadeTime > 0) {
+    return applyCrossfade(rawBuffer, fadeTime);
+  }
+  return rawBuffer;
+}
+
+/**
+ * Apply crossfade to buffer for seamless looping
+ * Mixes the end of the buffer with the beginning
+ */
+function applyCrossfade(buffer, fadeTime) {
+  const sampleRate = buffer.sampleRate;
+  const fadeSamples = Math.min(Math.floor(fadeTime * sampleRate), Math.floor(buffer.length / 2));
+
+  if (fadeSamples <= 0) return buffer;
+
+  const ctx = getAudioContext();
+  const newBuffer = ctx.createBuffer(buffer.numberOfChannels, buffer.length, sampleRate);
+
+  for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+    const inputData = buffer.getChannelData(channel);
+    const outputData = newBuffer.getChannelData(channel);
+
+    // Copy the buffer
+    outputData.set(inputData);
+
+    // Apply crossfade at the loop point
+    for (let i = 0; i < fadeSamples; i++) {
+      const fadeIn = i / fadeSamples;  // 0 -> 1
+      const fadeOut = 1 - fadeIn;       // 1 -> 0
+
+      // At the beginning: mix in faded end
+      const endSample = inputData[buffer.length - fadeSamples + i];
+      outputData[i] = inputData[i] * fadeIn + endSample * fadeOut;
+
+      // At the end: mix in faded beginning
+      const startSample = inputData[i];
+      outputData[buffer.length - fadeSamples + i] = inputData[buffer.length - fadeSamples + i] * fadeOut + startSample * fadeIn;
+    }
+  }
+
+  return newBuffer;
+}
+
+/**
+ * Restart a layer's audio source (used when buffer changes during playback)
+ */
+function restartLayerSource(index) {
+  if (!state.isPlaying || index >= 2) return;
+
+  const ctx = getAudioContext();
+  const layer = state.layers[index];
+  const playbackRate = Math.pow(2, layer.pitch / 12);
+
+  // Stop current source
+  if (layerSources[index]) {
+    try {
+      layerSources[index].stop();
+    } catch (e) {
+      // Already stopped
+    }
+  }
+
+  // Start new source
+  if (layer.buffer && layerFilters[index]) {
+    layerFilters[index].frequency.cancelScheduledValues(0);
+    layerFilters[index].frequency.setValueAtTime(toneToFreq(layer.filter), ctx.currentTime);
+    const source = ctx.createBufferSource();
+    source.buffer = layer.buffer;
+    source.loop = true;
+    source.playbackRate.value = playbackRate;
+    source.connect(layerFilters[index]);
+    source.start();
+    layerSources[index] = source;
+  }
 }
 
 // ============ Start/Stop ============
@@ -1042,56 +1279,84 @@ async function startDrone() {
   state.sequencer.loopStartTime = ctx.currentTime;
   state.sequencer.scheduledNotes = [];
 
-  // Create effects chain
+  // Create effects chain (shared: saturation, delay, reverb)
   effects = new EffectsChain(masterGain);
   const effectsInput = effects.init();
 
-  // Create sequencer output with volume control
-  const seqVolume = state.layers[2].volume / 100;
-  sequencerOutput = createGain(seqVolume);
-  sequencerOutput.connect(effectsInput);
+  // Create sequencer output with per-layer filter and volume
+  const seqLayer = state.layers[2];
+  const seqVolume = seqLayer.volume / 100;
 
-  // Create modulation
+  // Sequencer filter (per-layer)
+  layerFilters[2] = ctx.createBiquadFilter();
+  layerFilters[2].type = 'lowpass';
+  layerFilters[2].Q.value = 0.7;
+  applyFilterValue(layerFilters[2], seqLayer.filter);
+
+  // Sequencer gain
+  layerGains[2] = createGain(seqVolume);
+
+  // Chain: sequencerOutput -> filter -> gain -> effects
+  sequencerOutput = createGain(1);
+  sequencerOutput.connect(layerFilters[2]);
+  layerFilters[2].connect(layerGains[2]);
+  layerGains[2].connect(effectsInput);
+
+  // Create modulation (will connect to filters after they're created)
   modulation = new ModulationSystem();
   modulation.start();
 
-  const filter = effects.getFilterNode();
-  if (filter) {
-    modulation.connect(filter.frequency, {
-      min: 200, max: 4000, intensity: 0.3, lfoIndex: 0
-    });
-  }
+  // Setup layers 0 and 1
+  const activeLayers = state.layers.slice(0, 2).filter(l => l.buffer);
 
-  // Setup granular for layers 0 and 1 only (not sequencer)
-  let activeLayers = state.layers.slice(0, 2).filter(l => l.buffer);
+  // Create layer audio routing with per-layer filter
+  state.layers.slice(0, 2).forEach((layer, index) => {
+    // Create per-layer filter
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 0.7;
+    applyFilterValue(filter, layer.filter);
+    layerFilters[index] = filter;
 
-  if (activeLayers.length === 0 && state.sequencer.notes.length === 0) {
-    const buffer = await generateChordBuffer('Cmaj7');
-    state.layers[0] = { type: 'chord', chord: 'Cmaj7', buffer, name: 'Cmaj7', volume: state.layers[0].volume };
-    activeLayers = [state.layers[0]];
-  }
-
-  // Create layer gain nodes and granular processors
-  granularProcessors = state.layers.slice(0, 2).map((layer, index) => {
     // Create volume gain node for this layer
     const volume = layer.volume / 100;
     layerGains[index] = createGain(volume);
+
+    // Chain: source -> filter -> volume -> effects
+    filter.connect(layerGains[index]);
     layerGains[index].connect(effectsInput);
 
-    // Create granular processor connected to this layer's gain
-    const gp = new GranularProcessor(layerGains[index]);
-    if (layer.buffer) gp.setBuffer(layer.buffer);
-    return gp;
+    // Calculate playback rate from pitch
+    const playbackRate = Math.pow(2, layer.pitch / 12);
+
+    // Start looping source if layer has buffer
+    if (layer.buffer) {
+      const source = ctx.createBufferSource();
+      source.buffer = layer.buffer;
+      source.loop = true;
+      source.playbackRate.value = playbackRate;
+      source.connect(filter);
+      source.start();
+      layerSources[index] = source;
+    }
+  });
+
+  // Connect modulation to all layer filters for subtle movement
+  layerFilters.forEach((filter, index) => {
+    if (filter) {
+      modulation.connect(filter.frequency, {
+        min: 800, max: 2500, intensity: 0.15, lfoIndex: index % 4
+      });
+    }
   });
 
   applyControls();
 
+  // Apply bypasses for shared effects
   Object.keys(state.bypass).forEach(stage => {
-    if (state.bypass[stage]) applyBypass(stage, true);
-  });
-
-  granularProcessors.forEach((gp, i) => {
-    if (state.layers[i].buffer) gp.start();
+    if (state.bypass[stage]) {
+      applyBypass(stage, true);
+    }
   });
 
   // Start sequencer scheduling
@@ -1115,22 +1380,29 @@ function startSequencerScheduler() {
 function stopDrone() {
   state.isPlaying = false;
 
-  granularProcessors.forEach(gp => gp.stop());
-  sequencerGranular?.stop();
   modulation?.stop();
   visualizer?.stop();
+
+  // Stop layer sources
+  layerSources.forEach(source => {
+    try {
+      source?.stop();
+    } catch (e) {
+      // Already stopped
+    }
+  });
 
   setTimeout(() => {
     effects?.disconnect();
     sequencerOutput?.disconnect();
     layerGains.forEach(g => g?.disconnect());
-    granularProcessors = [];
+    layerFilters.forEach(f => f?.disconnect());
     layerGains = [null, null, null];
+    layerFilters = [null, null, null];
+    layerSources = [null, null];
     effects = null;
     modulation = null;
     sequencerOutput = null;
-    sequencerGranular = null;
-    sequencerGranularBuffer = null;
   }, 300);
 }
 
