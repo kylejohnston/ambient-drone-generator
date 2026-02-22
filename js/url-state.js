@@ -53,7 +53,7 @@ class BitReader {
   read(n) {
     let result = 0;
     for (let i = 0; i < n; i++) {
-      if (this._byteIdx >= this._bytes.length) return result << (n - 1 - i);
+      if (this._byteIdx >= this._bytes.length) return result << (n - i);
       const bit = (this._bytes[this._byteIdx] >>> this._bit) & 1;
       result = (result << 1) | bit;
       this._bit--;
