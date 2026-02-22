@@ -53,6 +53,7 @@ class BitReader {
   read(n) {
     let result = 0;
     for (let i = 0; i < n; i++) {
+      // Bytes exhausted: left-shift bits already read to fill remaining positions with zero
       if (this._byteIdx >= this._bytes.length) return result << (n - i);
       const bit = (this._bytes[this._byteIdx] >>> this._bit) & 1;
       result = (result << 1) | bit;
@@ -326,6 +327,9 @@ const BIP39 = [
   'yellow','you','young','youth','zebra','zero','zone','zoo'
 ];
 
+// Reverse index for O(1) word→index lookup during decode
+const BIP39_INDEX = new Map(BIP39.map((word, i) => [word, i]));
+
 // ── Key orderings (fixed — never reorder these) ───────────────────────────
 const CHORD_KEYS = ['Cmaj7','Am7','Fmaj7','Dm7','G7','Em7','Bbmaj7','Csus2','Fsus2','Asus2'];
 const NOTE_KEYS  = ['C3','C#3','D3','D#3','E3','F3','F#3','G3','G#3','A3','A#3','B3','C4'];
@@ -411,15 +415,16 @@ function wordsToBytes(wordString) {
   const words = wordString.split('-');
   const w = new BitWriter();
   for (const word of words) {
-    const idx = BIP39.indexOf(word);
-    if (idx === -1) throw new Error(`Unknown word: ${word}`);
+    const idx = BIP39_INDEX.get(word);
+    if (idx === undefined) throw new Error(`Unknown word: ${word}`);
     w.write(idx, 11);
   }
   return w.flush();
 }
 
 /** Decode a hyphen-joined BIP39 word string to a preset object.
- *  Returns null if the string is malformed or version is unrecognised. */
+ *  Returns null on version mismatch or out-of-range indices; throws on unknown words
+ *  (caught by decodeState's try/catch, which returns null to the caller). */
 function decodeWords(wordString) {
   const bytes = wordsToBytes(wordString);
   const r = new BitReader(bytes);
@@ -444,7 +449,9 @@ function decodeWords(wordString) {
       layers.push(null);
       continue;
     }
-    const chord  = CHORD_KEYS[r.read(4)];
+    const chordIdx = r.read(4);
+    if (chordIdx >= CHORD_KEYS.length) return null;
+    const chord = CHORD_KEYS[chordIdx];
     const vol    = r.read(7);
     const filter = r.read(7);
     const pitch  = r.read(6) - 24;   // decode offset
@@ -466,6 +473,7 @@ function decodeWords(wordString) {
   for (let i = 0; i < noteCount; i++) {
     const noteIdx = r.read(4);
     const timeIdx = r.read(6);
+    if (noteIdx >= NOTE_KEYS.length) return null;
     notes.push([NOTE_KEYS[noteIdx], timeIdx / 16]);
   }
 
