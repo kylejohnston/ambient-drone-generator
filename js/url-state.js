@@ -342,7 +342,7 @@ function stateToBytes(state) {
   w.write(Math.round(state.controls.movement), 7);
   w.write(Math.round(state.controls.grit),     7);
   w.write(Math.round(state.controls.depth),    7);
-  w.write(Math.round(state.controls.space),    6);
+  w.write(Math.round(state.controls.space),    6); // max=60, fits in 6 bits (0–63)
 
   // Bypass flags (1 = bypassed)
   w.write(state.bypass.modulation ? 1 : 0, 1);
@@ -358,7 +358,9 @@ function stateToBytes(state) {
       continue;
     }
     w.write(1, 1); // present
-    w.write(CHORD_KEYS.indexOf(layer.chord), 4);
+    const chordIdx = CHORD_KEYS.indexOf(layer.chord);
+    if (chordIdx === -1) throw new Error(`Unknown chord: ${layer.chord}`);
+    w.write(chordIdx, 4);
     w.write(Math.round(layer.volume), 7);
     w.write(Math.round(layer.filter), 7);
     w.write(layer.pitch + 24, 6);             // offset encode: -24..+24 → 0..48
@@ -377,7 +379,9 @@ function stateToBytes(state) {
   const notes = state.sequencer.notes.slice(0, 15); // cap at 15
   w.write(notes.length, 4);
   for (const n of notes) {
-    w.write(NOTE_KEYS.indexOf(n.note), 4);
+    const noteIdx = NOTE_KEYS.indexOf(n.note);
+    if (noteIdx === -1) throw new Error(`Unknown note: ${n.note}`);
+    w.write(noteIdx, 4);
     w.write(Math.min(63, Math.round(n.time * 16)), 6);
   }
 
