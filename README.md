@@ -117,6 +117,8 @@ The sequencer **toggle** mutes and unmutes the layer without clearing notes. The
 
 The full app state encodes automatically into the URL as a `?p=` parameter (debounced 500ms, using `history.replaceState`). Sharing a preset is as simple as copying the address bar.
 
+URLs use a human-readable word format powered by the BIP39 English wordlist (e.g. `?p=hollow-amber-echo-drift-canyon-river`). Legacy base64 URLs from earlier versions are still decoded correctly.
+
 **What is serialized:** effect control values, bypass states, chord layer settings (chord name, vol, tone, pitch, length, crossfade), sequencer layer settings, snap toggle, and all sequencer notes.
 
 **What is not serialized:** uploaded audio files (binary data cannot be encoded in a URL). Layers loaded from uploaded files are silently omitted; they load empty when the URL is restored.
