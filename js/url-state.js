@@ -330,10 +330,81 @@ const BIP39 = [
 const CHORD_KEYS = ['Cmaj7','Am7','Fmaj7','Dm7','G7','Em7','Bbmaj7','Csus2','Fsus2','Asus2'];
 const NOTE_KEYS  = ['C3','C#3','D3','D#3','E3','F3','F#3','G3','G#3','A3','A#3','B3','C4'];
 
+// ── Word encoding ──────────────────────────────────────────────────────────
+
+/** Pack app state into bytes using the binary format from the design doc */
+function stateToBytes(state) {
+  const w = new BitWriter();
+
+  w.write(1, 3);  // version = 1
+
+  // Effects controls
+  w.write(Math.round(state.controls.movement), 7);
+  w.write(Math.round(state.controls.grit),     7);
+  w.write(Math.round(state.controls.depth),    7);
+  w.write(Math.round(state.controls.space),    6);
+
+  // Bypass flags (1 = bypassed)
+  w.write(state.bypass.modulation ? 1 : 0, 1);
+  w.write(state.bypass.grit       ? 1 : 0, 1);
+  w.write(state.bypass.delay      ? 1 : 0, 1);
+  w.write(state.bypass.reverb     ? 1 : 0, 1);
+
+  // Chord layers (L0 and L1)
+  for (let i = 0; i < 2; i++) {
+    const layer = state.layers[i];
+    if (layer.type !== 'chord') {
+      w.write(0, 1); // not present
+      continue;
+    }
+    w.write(1, 1); // present
+    w.write(CHORD_KEYS.indexOf(layer.chord), 4);
+    w.write(Math.round(layer.volume), 7);
+    w.write(Math.round(layer.filter), 7);
+    w.write(layer.pitch + 24, 6);             // offset encode: -24..+24 → 0..48
+    w.write(Math.round(layer.length) - 2, 4); // offset encode: 2..10 → 0..8
+    w.write(Math.round(layer.fade * 10), 5);  // scale: 0.0..2.0 → 0..20
+  }
+
+  // Sequencer layer (L2 — always present)
+  const seq = state.layers[2];
+  w.write(Math.round(seq.volume), 7);
+  w.write(Math.round(seq.filter), 7);
+  w.write(seq.pitch + 24, 6);
+
+  // Sequencer data
+  w.write(state.sequencer.snap ? 1 : 0, 1);
+  const notes = state.sequencer.notes.slice(0, 15); // cap at 15
+  w.write(notes.length, 4);
+  for (const n of notes) {
+    w.write(NOTE_KEYS.indexOf(n.note), 4);
+    w.write(Math.min(63, Math.round(n.time * 16)), 6);
+  }
+
+  return w.flush();
+}
+
+/** Convert a Uint8Array to a hyphen-joined BIP39 word string */
+function bytesToWords(bytes) {
+  const words = [];
+  const r = new BitReader(bytes);
+  const totalBits = bytes.length * 8;
+  const wordCount = Math.ceil(totalBits / 11);
+  for (let i = 0; i < wordCount; i++) {
+    words.push(BIP39[r.read(11)]);
+  }
+  return words.join('-');
+}
+
+/** Encode app state to a hyphen-joined BIP39 word string */
+function encodeWords(state) {
+  return bytesToWords(stateToBytes(state));
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 
 export function encodeState(state) {
-  return btoa(JSON.stringify({ _placeholder: true })); // temporary
+  return encodeWords(state);
 }
 
 export function decodeState(encoded) {
