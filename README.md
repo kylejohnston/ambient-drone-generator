@@ -125,6 +125,29 @@ URLs use a human-readable word format powered by the BIP39 English wordlist (e.g
 
 Opening a URL with a `?p=` parameter restores the full preset on load. Malformed parameters fail silently and load defaults.
 
+## Open Source Credits
+
+This project uses no runtime libraries. Two open-source assets are bundled directly:
+
+### Iosevka
+- **What:** Monospace typeface used for all UI text
+- **Author:** Be5invis
+- **License:** [SIL Open Font License 1.1](https://scripts.sil.org/OFL)
+- **Source:** https://github.com/be5invis/Iosevka
+
+The font is subsetted to ASCII + U+25CB (circle) and served as a 19KB `.woff2` file. The full source font (`fonts/SGr-Iosevka-Light.ttc`) is included in the repository per the OFL requirement that the font be distributed alongside any derivative work.
+
+### BIP39 English Wordlist
+- **What:** 2048-word list used to encode preset URLs as human-readable word sequences (e.g. `?p=hollow-amber-echo-drift`)
+- **Author:** SatoshiLabs (Trezor)
+- **License:** [MIT](https://opensource.org/licenses/MIT)
+- **Source:** https://github.com/trezor/python-mnemonic/blob/master/src/mnemonic/wordlist/english.txt
+- **Specification:** [BIP-0039](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
+
+The wordlist is embedded inline in `js/url-state.js`.
+
+---
+
 ## Browser Support
 
 Requires a modern browser with:

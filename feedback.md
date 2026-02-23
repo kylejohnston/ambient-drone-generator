@@ -1,5 +1,4 @@
-I'm working on an ambient drone generator, which outputs drone sounds in the style of
-fred again. I'd like iterate on the current version based to improve the output.
+I'm working on an ambient drone generator, which outputs drone sounds in the style of fred again. I'd like iterate on the current version based to improve the output.
 
 the current app has two tabs:
 1. 'easy', a quick drone with simple controls.

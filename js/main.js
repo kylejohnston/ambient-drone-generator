@@ -56,15 +56,15 @@ const KEY_MAP = {
 // Sequencer constants
 const LOOP_LENGTH = 4.0;   // 4 seconds
 const GRID_DIVISIONS = 16; // 16th notes
-const NOTE_DURATION = 3.5; // How long each triggered note sounds (long for ambient blend)
+const NOTE_DURATION = 3.5; // How long each triggered note sounds (long for ambient blend)8
 
 // Application state
 const state = {
   isPlaying: false,
   layers: [
-    { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 8, pitch: 0, length: 10, fade: 2 },
-    { type: null, chord: null, buffer: null, name: 'Empty', volume: 80, filter: 50, pitch: 0, length: 6, fade: 1 },
-    { type: 'sequencer', chord: null, buffer: null, name: 'Sequencer', volume: 100, filter: 33, pitch: -11 }
+    { type: null, chord: null, buffer: null, name: 'Empty', volume: 100, filter: 8, pitch: 0, length: 10, fade: 2 },
+    { type: null, chord: null, buffer: null, name: 'Empty', volume: 100, filter: 16, pitch: 24, length: 6, fade: 1 },
+    { type: 'sequencer', chord: null, buffer: null, name: 'Sequencer', volume: 100, filter: 32, pitch: 0 }
   ],
   controls: {
     movement: 56, // Modulation amount
@@ -75,7 +75,7 @@ const state = {
   bypass: {
     modulation: false,
     grit: false,
-    delay: true,
+    delay: false,
     reverb: false
   },
   sequencer: {
