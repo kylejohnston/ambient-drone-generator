@@ -796,6 +796,11 @@ async function addNote(note) {
     time
   });
 
+  // Auto-unmute when a note is added
+  if (state.sequencer.muted) {
+    state.sequencer.muted = false;
+  }
+
   updateSequencerUI();
 
   // Play preview sound
