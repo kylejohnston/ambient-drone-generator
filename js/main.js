@@ -204,10 +204,7 @@ function applyPreset(preset) {
 
   // Sequencer snap and notes
   if (preset.sq) {
-    const snap = preset.sq.sn === 1;
-    state.sequencer.snap = snap;
-    const snapToggle = document.getElementById('quantize-toggle');
-    if (snapToggle) snapToggle.checked = snap;
+    state.sequencer.snap = true;
 
     if (Array.isArray(preset.sq.n)) {
       state.sequencer.notes = preset.sq.n.map(([note, time]) => ({
@@ -722,14 +719,7 @@ function updateLayerVolume(index, volume) {
 
 function bindSequencer() {
   const keyboard = document.getElementById('keyboard');
-  const snapToggle = document.getElementById('quantize-toggle');
   const grid = document.getElementById('sequencer-grid');
-
-  // Snap toggle
-  snapToggle?.addEventListener('change', (e) => {
-    state.sequencer.snap = e.target.checked;
-    scheduleUrlUpdate();
-  });
 
   // Keyboard mouse input
   keyboard.querySelectorAll('.key').forEach(key => {
