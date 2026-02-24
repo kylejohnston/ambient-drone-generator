@@ -25,7 +25,7 @@
   --border-light: #3d3a36;
   --radius-panel: 24px;
   --radius-control: 8px;
-  --font: 'Iosevka', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font: 'IBM Plex Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
   --transition: 0.2s ease;
 }
 
@@ -84,6 +84,10 @@ hr {
   border: 1.5px solid var(--border);
 }
 
+.text-muted {
+  color: var(--text-muted);
+}
+
 /* ============ App Container ============ */
 
 .app {
@@ -138,7 +142,7 @@ hr {
 .header h1 {
   font-size: 3.75rem;
   font-weight: 300;
-  letter-spacing: 0.12em;
+  letter-spacing: -0.003125em;
   color: var(--text);
   line-height: 1.2;
   text-transform: none;
@@ -148,7 +152,6 @@ hr {
 .tagline {
   font-size: 1.125rem;
   color: var(--text);
-  letter-spacing: 0.08em;
   margin-top: 0.25rem;
 }
 
@@ -320,9 +323,9 @@ input[data-fader] {
 .fader__label {
   font-size: 1.125rem;
   color: var(--text);
-  letter-spacing: 0.08em;
+  letter-spacing: -0.00625em;
   text-align: center;
-  margin-top: 0.25rem;
+  margin-top: 0.125rem;
 }
 
 .fader:focus-visible {
@@ -402,7 +405,6 @@ section.has-content .layer-toggle {
   border-radius: calc(var(--radius-control) - 2px);
   font-size: 1.5rem;
   color: var(--text);
-  letter-spacing: 0.02em;
   line-height: 1;
 }
 
@@ -440,7 +442,7 @@ section.has-content .layer-toggle {
   flex: 1;
   font-size: 1.125rem;
   color: var(--text-muted);
-  letter-spacing: 0.08em;
+  letter-spacing: -0.00625em;
 }
 
 .sequencer-layer .layer-clear {
@@ -448,8 +450,8 @@ section.has-content .layer-toggle {
   align-items: center;
   justify-content: center;
   font-family: var(--font);
-  font-size: 1.125rem;
-  letter-spacing: 0.08em;
+  font-size: 0.875rem;
+  letter-spacing: -0.00625em;
   color: var(--text-muted);
   background: none;
   border: none;
@@ -596,7 +598,7 @@ section.has-content .layer-toggle {
 
 .note-block {
   position: absolute;
-  height: 32px;
+  height: 30px;
   width: calc(6.25% - 8px);
   margin-left: 2px;
   background: var(--accent);
