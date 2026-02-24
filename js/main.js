@@ -838,9 +838,17 @@ function updateSequencerUI() {
 
     // Position: notes fill their column (between grid lines)
     const leftPercent = (noteData.time / LOOP_LENGTH) * 100;
-    const row = noteRows.get(noteData.id) || 0;
-    const topOffset = 7 + row * 38;
-
+    const info = noteRows.get(noteData.id) || { row: 0, stackIndex: -1, stackSize: 1 };
+    let topOffset;
+    if (info.stackIndex >= 0) {
+      // Card-deck stack: center the stack vertically, offset each card by 6px
+      const stackBaseTop = Math.round((120 - 32) / 2) - Math.round((info.stackSize - 1) * 3);
+      topOffset = stackBaseTop + info.stackIndex * 6;
+      block.classList.add('stacked');
+      block.style.zIndex = info.stackSize - info.stackIndex;
+    } else {
+      topOffset = 7 + info.row * 38;
+    }
     block.style.left = `calc(${leftPercent}% + 2px)`;
     block.style.top = `${topOffset}px`;
 
@@ -875,24 +883,46 @@ function updateSequencerUI() {
 }
 
 function assignNoteRows(notes) {
-  const rowMap = new Map();
+  const rowMap = new Map();         // noteId -> { row, stackIndex, stackSize }
   const gridSize = LOOP_LENGTH / GRID_DIVISIONS;
+
+  // Group notes by their quantized grid slot
+  const groups = new Map(); // slotKey -> [note, ...]
+  notes.forEach(note => {
+    const slot = Math.round(note.time / gridSize);
+    if (!groups.has(slot)) groups.set(slot, []);
+    groups.get(slot).push(note);
+  });
+
+  // For single-note groups: spread across up to 3 rows (existing behaviour)
+  // For multi-note groups: mark as stacked
   const sortedNotes = [...notes].sort((a, b) => a.time - b.time);
 
   sortedNotes.forEach(note => {
-    // Find first row that doesn't conflict
+    const slot = Math.round(note.time / gridSize);
+    const group = groups.get(slot);
+
+    if (group.length > 1) {
+      // Stacked group: assign stack index in order of note id
+      const stackIndex = group.indexOf(note);
+      rowMap.set(note.id, { row: -1, stackIndex, stackSize: group.length });
+      return;
+    }
+
+    // Single note: assign to first available row (existing spread logic)
     let row = 0;
-    while (true) {
+    while (row <= 2) {
       const conflict = sortedNotes.some(other => {
         if (other.id === note.id) return false;
-        if (rowMap.get(other.id) !== row) return false;
+        const otherInfo = rowMap.get(other.id);
+        if (!otherInfo || otherInfo.row !== row) return false;
         return Math.abs(other.time - note.time) < gridSize * 2;
       });
       if (!conflict) break;
       row++;
-      if (row > 2) { row = 0; break; } // Max 3 rows
     }
-    rowMap.set(note.id, row);
+    if (row > 2) row = 0;
+    rowMap.set(note.id, { row, stackIndex: -1, stackSize: 1 });
   });
 
   return rowMap;
