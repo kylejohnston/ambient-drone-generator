@@ -445,13 +445,31 @@ section.has-content .layer-toggle {
   display: none;
 }
 
-/* Sequencer layer-name is visible and pushes Snap to the right */
+/* Sequencer layer-name is visible and pushes clear button to the right */
 .sequencer-layer .layer-name {
   display: block;
   flex: 1;
   font-size: 1.125rem;
   color: var(--text-muted);
   letter-spacing: 0.08em;
+}
+
+.sequencer-layer .layer-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.125rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--transition);
+}
+
+.sequencer-layer .layer-clear:hover {
+  color: var(--text);
 }
 
 /* ============ Layer Controls (Chord Select) ============ */
@@ -512,30 +530,6 @@ section.has-content .layer-toggle {
 
 .sequencer-options {
   display: none;
-}
-
-/* ============ Quantize Toggle ============ */
-
-.quantize-toggle {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.quantize-toggle input {
-  display: none;
-}
-
-.quantize-toggle .toggle-label {
-  font-size: 1.125rem;
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
-  transition: color var(--transition);
-}
-
-.quantize-toggle input:checked + .toggle-label {
-  color: var(--accent);
 }
 
 /* ============ Sequencer Grid ============ */
