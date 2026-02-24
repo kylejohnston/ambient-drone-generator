@@ -789,6 +789,16 @@ async function addNote(note) {
     if (time >= LOOP_LENGTH) time = 0;
   }
 
+  // Auto-start the drone when a note is added while stopped
+  if (!state.isPlaying) {
+    await startDrone();
+    const playBtn = document.getElementById('play-btn');
+    if (state.isPlaying) {
+      playBtn.classList.add('playing');
+      playBtn.setAttribute('aria-label', 'Pause drone');
+    }
+  }
+
   // Add note
   state.sequencer.notes.push({
     id: state.sequencer.nextNoteId++,
