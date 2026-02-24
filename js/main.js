@@ -903,7 +903,7 @@ function assignNoteRows(notes) {
     const group = groups.get(slot);
 
     if (group.length > 1) {
-      // Stacked group: assign stack index in order of note id
+      // Stacked group: assign stack index in insertion order
       const stackIndex = group.indexOf(note);
       rowMap.set(note.id, { row: -1, stackIndex, stackSize: group.length });
       return;
