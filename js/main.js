@@ -12,7 +12,6 @@ import {
 } from './audio-engine.js';
 import { ModulationSystem } from './modulation.js';
 import { EffectsChain } from './effects.js';
-import { Visualizer } from './visualizer.js';
 import { VerticalFader } from './fader.js';
 import { encodeState, decodeState, getUrlParam } from './url-state.js';
 
@@ -97,7 +96,6 @@ let layerFilters = [null, null, null]; // Per-layer filter nodes
 let layerSources = [null, null]; // Looping buffer sources for layers 0 and 1
 let effects = null;
 let modulation = null;
-let visualizer = null;
 let sequencerOutput = null;
 let playheadAnimationFrame = null;
 
@@ -222,9 +220,6 @@ function applyPreset(preset) {
  * Initialize the application
  */
 function init() {
-  const canvas = document.getElementById('visualizer');
-  visualizer = new Visualizer(canvas);
-
   bindControls();
   bindLayerParams();
   bindBypassToggles();
@@ -1388,7 +1383,6 @@ async function startDrone() {
   // Start sequencer scheduling
   startSequencerScheduler();
 
-  visualizer.start();
   state.isPlaying = true;
 
   // Apply controls and bypasses after isPlaying = true so their guards pass
@@ -1415,7 +1409,6 @@ function stopDrone() {
   state.isPlaying = false;
 
   modulation?.stop();
-  visualizer?.stop();
 
   // Stop layer sources
   layerSources.forEach(source => {
