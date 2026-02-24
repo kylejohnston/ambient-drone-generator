@@ -631,6 +631,10 @@ section.has-content .layer-toggle {
   transform: none;
 }
 
+.note-block.stacked:hover {
+  transform: none;
+}
+
 .note-block.dragging {
   cursor: grabbing;
   transform: scale(1.1);
