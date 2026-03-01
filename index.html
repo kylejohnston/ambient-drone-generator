@@ -3,11 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MurmurMoth ¦ Ambient Drone Generator</title>
+  <title>Massive Bloom ¦ Ambient drone generator</title>
+  <meta name="description" content="Massive Bloom is a browser-based instrument for creating evolving, atmospheric drone sounds and textures">
+  <link href="https://www.massivebloomsound.com/" rel="canonical">
+
+  <!-- SVG favicons with embedded CSS -->
+  <link rel="icon" type="image/svg+xml" href="public/favicon.svg">
+  <!-- PNG fallback for browsers without SVG favicon support -->
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+  <meta property="og:title" content="Massive Bloom ¦ Ambient drone generator">
+  <meta property="og:description" content="Massive Bloom is a browser-based instrument for creating evolving, atmospheric drone sounds and textures">
+  <meta property="og:image" content="https://www.massivebloomsound.com/public/og-image.png">
+  <meta property="og:url" content="https://www.massivebloomsound.com/">
+  <meta property="og:type" content="website">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <main class="app mode-create">
@@ -19,7 +35,7 @@
         <div class="rack__top">
           <header class="header">
             <div class="header-text">
-              <h1>MURMURMOTH</h1>
+              <h1>MASSIVE BLOOM</h1>
               <p class="tagline">ambient drone generator ¦ <button class="info-btn" id="info-btn" aria-label="Open instructions">INFO</button></p>
               <p class="text-muted">GEN 00</p>
             </div>
@@ -177,7 +193,7 @@
                 <span class="toggle-id">S1</span>
                 <span class="toggle-off-ind">●</span>
               </button>
-              <span class="layer-name" id="layer-2-name">Sequencer</span>
+              <span class="layer-name"></span>
               <button class="toggle-label layer-clear" data-layer="2" aria-label="Clear sequencer">CLEAR</button>
             </div>
 
@@ -272,16 +288,18 @@
     <div class="info-modal">
       <button class="info-modal__close" id="info-close" aria-label="Close instructions">&times;</button>
       <div class="info-modal__body">
-        <h2 id="info-modal-title">Credits</h2>
+        <h2 id="info-modal-title">INFO</h2>
+        <p>Crafted by <a href="https://kyleio.com">kyle</a> and Claude Code ¦ <a href="https://github.com/kylejohnston?tab=repositories">Project GitHub</a></p>
         <p>Inspired by the ambient soundscapes of <a href="https://www.brian-eno.net/">Brian Eno</a> and <a href="https://www.fredagain.com/">Fred again..</a> and their collaborative album, <a href="https://en.wikipedia.org/wiki/Secret_Life_(album)">Secret Life</a></p>
-        <p>Made by kyle. <a href="https://kyleio.com">Website</a> ¦ <a href="https://github.com/kylejohnston?tab=repositories">GitHub</a></p>
         <hr>
-        <h3>Getting Started</h3>
-        <p>Press the power button in the top-left corner to start the audio.</p>
-        <p><em>Note: Your browser may ask permission to use audio – allow it and press play again if needed.</em></p>
+        <h3>+¦+ Guide +¦+</h3>
+        <p style="margin-bottom: 24px;"><a href="#effects">Effects</a> · <a href="#layers">Sonic Layers</a> · <a href="#sharing">Sharing</a> · <a href="#tips">Tips</a><br /></p>
+        <h3>+¦+ Getting started +¦+</h3>
+        <p>Press the power button in the top-left corner to start the audio. <em>Note: Your browser may ask permission to use audio – allow it and press play again if needed.</em></p>
 
-        <h3>Effects</h3>
-        <p>The top row has four global effects that apply to all layers. Each effect has a fader and an ON/OFF toggle.</p>
+        <a name="effects"></a>
+        <h3>+¦+ Effects +¦+</h3>
+        <p>The top row has four global effects that apply to all active sonic layers. Each effect has a fader and ON/OFF toggle.</p>
         <ul>
           <li><strong>MOD</strong> – modulation – adds slow pitch and filter movement to keep the sound alive</li>
           <li><strong>GRIT</strong> – saturation – adds harmonic grit and texture</li>
@@ -289,12 +307,13 @@
           <li><strong>RVRB</strong> – reverb – controls the reverb decay time (up to 60 seconds)</li>
         </ul>
 
-        <h3>Layers</h3>
-        <p>The generator has three sound layers—two chords and a sequencer—each with its own on/off toggle.</p>
+        <a name="layers"></a>
+        <h3>+¦+ Sonic Layers +¦+</h3>
+        <p>The generator has three sonic layers—two chord presets and a sequencer—each with an on/off toggle.</p>
 
-        <h4>C1 and C2 – Chord Layers</h4>
-        <p>Select a chord from the dropdown to load a looping drone. Each layer continuously crossfades through the chord tones, creating an evolving pad. You can also add your own audio file using the "Upload file…" option. <em>(note: uploaded files are stored in your browser and are not shareable)</em></p>
-        <p><strong>Each chord layer has five faders:</strong></p>
+        <h4>C1 and C2 – Looping drone layers</h4>
+        <p>Select a chord from the dropdown to load a looping drone. Each layer continuously crossfades, creating an evolving pad. You can also add your own audio file using the "Upload file…" option. <em>(note: uploaded files are stored in your browser and are not shareable)</em></p>
+        <p><strong>Each drone layer has five faders:</strong></p>
         <ul>
           <li><strong>VOL</strong> – volume</li>
           <li><strong>TONE</strong> – filter brightness – lower values are darker/bassier</li>
@@ -312,13 +331,15 @@
           <li><strong>PTCH</strong> – pitch shift in semitones (±24)</li>
         </ul>
 
-        <h3>Sharing your composition</h3>
-        <p>Your current settings are automatically saved to the page URL. To share or save your composition, simply copy and paste the link.</p>
+        <a name="sharing"></a>
+        <h3>+¦+ Sharing your composition +¦+</h3>
+        <p>Your composition settings are automatically saved to the page URL. Save it with a bookmark or share with a simple copy and paste.</p>
 
-        <h3>Tips</h3>
+        <a name="tips"></a>
+        <h3>+¦+ Tips +¦+</h3>
         <ul>
-          <li>Start with one chord layer and add the second for harmonic depth.</li>
-          <li>Experiment with PTCH to create harmonics across your two chord layers (try shifting C2 by +7 or +12 semitones).</li>
+          <li>Start with one drone layer and add the second for harmonic depth.</li>
+          <li>Experiment with PTCH to create harmonics across your drone layers (try shifting C2 by +7 or +12 semitones).</li>
           <li>Keep RVRB high for a floating, spacious quality.</li>
           <li>MOD keeps the sound from feeling static.</li>
         </ul>

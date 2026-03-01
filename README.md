@@ -1,28 +1,27 @@
-# a_d_gen_01
+# Massive Bloom ¦ Ambient drone generator
 
-Ambient drone generator. A browser-based instrument for creating evolving, atmospheric drone textures inspired by the production techniques of fred again.. and Brian Eno.
+A browser-based instrument for creating evolving, atmospheric drone textures inspired by the production techniques of Fred again.. and Brian Eno.
 
 No build tools, no dependencies, no server required. Open `index.html` in a browser.
 
 ## How It Works
 
 ### Signal Flow
-
 ```
-                        ┌─────────────────────────────────────────────────┐
-                        │              EFFECTS CHAIN (shared)             │
-                        │                                                 │
-CHORD LAYER 1 ──┐      │  Saturation ──▸ Stereo Delay ──▸ Conv. Reverb  │      Master
-  BiquadFilter   ├──▸──│                                                 │──▸── Gain ──▸ Analyser ──▸ Output
-  GainNode       │      └─────────────────────────────────────────────────┘
-                 │                                                                 │
-CHORD LAYER 2 ──┤                                                             Visualizer
-  BiquadFilter   │
-  GainNode       │
-                 │
-SEQUENCER ──────┘
-  BiquadFilter
-  GainNode
+⟡ - - - - - - - - - - - - - - - ⟡
+  CHORD 1 / 2   ¦ SEQUENCER
+   BiquadFilter |  BiquadFilter
+   GainNode     |  GainNode
+⟡ - - - - - - - ↓ - - - - - - - ⟡
+  EFFECTS CHAIN (shared)
+  ± Saturation  ↓
+  ± Delay       ↓
+  ± Reverb      ↓
+⟡ - - - - - - - ↓ - - - - - - - ⟡
+  ± M. Gain     ↓
+  ± Analyser    ↓
+  = Output ⋆.˚⟡ ࣪ ˖⋆.˚⟡ ࣪ ˖⋆.˚
+⟡ - - - - - - - - - - - - - - - ⟡
 ```
 
 Each layer has independent volume, tone (lowpass filter), and pitch controls. Chord layers also have length and crossfade parameters that regenerate the audio buffer in real time.
@@ -65,10 +64,8 @@ Each effect stage has an independent bypass toggle. Bypassed stages crossfade to
 
 ```
 ├── index.html              UI layout (rack-mount panel design)
-├── styles.css              Hardware synth aesthetic (Iosevka, amber accent)
-├── fonts/
-│   ├── iosevka-light.woff2 Subset font (19KB, ASCII + U+25CB)
-│   └── SGr-Iosevka-Light.ttc  Source font (not used at runtime)
+├── css/
+│   ├── styles.css          Hardware synth aesthetic (IBM Plex Mono, amber accent)
 ├── js/
 │   ├── audio-engine.js     AudioContext, master gain, analyser setup
 │   ├── effects.js          Saturation, delay, convolution reverb chain
@@ -76,16 +73,13 @@ Each effect stage has an independent bypass toggle. Bypassed stages crossfade to
 │   ├── granular.js         Granular synthesis processor (unused in UI)
 │   ├── fader.js            Custom vertical fader component
 │   ├── url-state.js        URL preset encoding/decoding
-│   ├── visualizer.js       Canvas-based audio-reactive background
-│   └── main.js             Application state, UI bindings, sequencer
-└── CLAUDE.md               Development principles
+└   └── main.js             Application state, UI bindings, sequencer
 ```
 
 ## UI
 
 The interface uses a hardware synthesizer / rack-mount aesthetic:
 
-- **Iosevka Light** monospace font, uppercase, warm amber (`#f0b105`) accent on dark (`#161513`) background
 - **Vertical faders** with numeric readouts replace horizontal sliders
 - **Panel layout**: effects top-right, two chord layers side-by-side, full-width sequencer bottom
 - **Bypass toggles** styled as small illuminated dot indicators
@@ -129,14 +123,6 @@ Opening a URL with a `?p=` parameter restores the full preset on load. Malformed
 
 This project uses no runtime libraries. Two open-source assets are bundled directly:
 
-### Iosevka
-- **What:** Monospace typeface used for all UI text
-- **Author:** Be5invis
-- **License:** [SIL Open Font License 1.1](https://scripts.sil.org/OFL)
-- **Source:** https://github.com/be5invis/Iosevka
-
-The font is subsetted to ASCII + U+25CB (circle) and served as a 19KB `.woff2` file. The full source font (`fonts/SGr-Iosevka-Light.ttc`) is included in the repository per the OFL requirement that the font be distributed alongside any derivative work.
-
 ### BIP39 English Wordlist
 - **What:** 2048-word list used to encode preset URLs as human-readable word sequences (e.g. `?p=hollow-amber-echo-drift`)
 - **Author:** SatoshiLabs (Trezor)
@@ -161,12 +147,3 @@ Tested in Chrome and Safari. No polyfills needed.
 ## Development
 
 No build step. Edit files and refresh the browser.
-
-The font subset was generated with:
-```
-python3 -m fontTools.subset fonts/SGr-Iosevka-Light.ttc \
-  --font-number=0 \
-  --output-file=fonts/iosevka-light.woff2 \
-  --flavor=woff2 \
-  --unicodes="U+0020-007E,U+25CB"
-```
