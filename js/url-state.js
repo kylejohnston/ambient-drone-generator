@@ -69,7 +69,7 @@ class BitReader {
 
 // ── BIP39 English wordlist (2048 words, canonical ordering) ──────────────
 const BIP39 = [
-  'abate','ability','able','about','above','absent','absorb','abstract',
+  'abandon','ability','able','about','above','absent','absorb','abstract',
   'absurd','abuzz','access','accident','account','accurate','achieve','acid',
   'acoustic','acquire','across','act','action','actor','actress','actual',
   'adapt','added','addict','address','adjust','admit','adulate','advance',
@@ -84,7 +84,7 @@ const BIP39 = [
   'army','around','arrange','arrest','arrive','arrow','art','artefact',
   'artist','artwork','ask','aspect','assay','asset','assist','assume',
   'asthma','athlete','atom','attach','attend','attitude','attract','auction',
-  'audit','august','aunt','author','auto','autumn','average','avocado',
+  'auger','august','aunt','author','auto','autumn','average','avocado',
   'avoid','awake','aware','away','awesome','awhirl','awkward','axis',
   'baby','bachelor','bacon','badge','bag','balance','balcony','ball',
   'bamboo','banana','banner','bar','barely','bargain','barrel','base',
@@ -94,7 +94,7 @@ const BIP39 = [
   'bid','bike','bind','biology','bird','birth','bitter','black',
   'blade','blanch','blanket','blast','bleak','bless','blind','blood',
   'blossom','blouse','blue','blur','blush','board','boat','body',
-  'boil','bomb','bone','bonus','book','boost','border','boring',
+  'boiling','bomb','bone','bonus','book','boost','border','boring',
   'borrow','boss','bottom','bounce','box','boy','bracket','brain',
   'brand','brass','brave','bread','breeze','brick','bridge','brief',
   'bright','bring','brisk','broccoli','broken','bronze','broom','brother',
@@ -199,7 +199,7 @@ const BIP39 = [
   'lecture','left','leg','legal','legend','leisure','lemon','lend',
   'length','lens','leopard','lesson','letter','level','liar','liberty',
   'library','license','life','lift','light','like','limb','limit',
-  'link','lion','liquid','list','little','live','lizard','load',
+  'line','lion','liquid','list','little','live','lizard','load',
   'loan','lobster','local','lock','logic','lonely','long','loop',
   'lottery','loud','lounge','love','loyal','lucky','luggage','lumber',
   'lunar','lunch','luxury','lyrical','machine','mad','magic','magnet',

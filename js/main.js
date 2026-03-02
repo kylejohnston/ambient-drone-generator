@@ -55,7 +55,9 @@ const KEY_MAP = {
 // Sequencer constants
 const LOOP_LENGTH = 4.0;   // 4 seconds
 const GRID_DIVISIONS = 16; // 16th notes
-const NOTE_DURATION = 3.5; // How long each triggered note sounds (long for ambient blend)8
+const MAX_NOTES_PER_GRIDLINE = 3;
+const NOTE_DURATION = 3.5; // How long each triggered note sounds (long for ambient blend)
+const PLAYHEAD_OFFSET = 0.12; // Lag playhead behind real time to match perceived note onset
 
 // Application state
 const state = {
@@ -80,6 +82,7 @@ const state = {
   sequencer: {
     snap: true,
     muted: false,
+    powered: false, // true when sequencer independently started the engine
     notes: [], // { id, note, time }
     loopStartTime: 0,
     nextNoteId: 0,
@@ -98,6 +101,7 @@ let effects = null;
 let modulation = null;
 let sequencerOutput = null;
 let playheadAnimationFrame = null;
+let droneStartPromise = null;
 
 // ============ URL Preset Sharing ============
 
@@ -454,13 +458,14 @@ function bindPlayButton() {
   const playBtn = document.getElementById('play-btn');
 
   playBtn.addEventListener('click', async () => {
-    if (state.isPlaying) {
-      stopDrone();
+    if (playBtn.classList.contains('playing')) {
+      // Main power turning off — stops everything
       playBtn.classList.remove('playing');
       playBtn.setAttribute('aria-label', 'Play drone');
+      stopDrone();
     } else {
-      await startDrone();
-      // Only show playing state if something actually started
+      // Main power turning on
+      if (!state.isPlaying) await startDrone();
       if (state.isPlaying) {
         playBtn.classList.add('playing');
         playBtn.setAttribute('aria-label', 'Pause drone');
@@ -546,15 +551,28 @@ function bindLayers() {
   // Layer toggle acts as power/clear button
   document.querySelectorAll('.layer-toggle[data-layer]').forEach(btn => {
     const layerIndex = parseInt(btn.dataset.layer, 10);
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       if (layerIndex === 2) {
-        if (state.sequencer.notes.length > 0 || state.sequencer.muted) {
+        if (!state.sequencer.powered) {
+          // Turn on sequencer
+          state.sequencer.powered = true;
+          if (!state.isPlaying) await startDrone();
+          if (state.isPlaying) {
+            document.querySelector('.sequencer-layer')?.classList.add('has-content');
+          }
+        } else if (state.sequencer.notes.length > 0 || state.sequencer.muted) {
           state.sequencer.muted = !state.sequencer.muted;
           updateSequencerUI();
+        } else {
+          // Turn off sequencer (no notes)
+          state.sequencer.powered = false;
+          document.querySelector('.sequencer-layer')?.classList.remove('has-content');
+          const playBtn = document.getElementById('play-btn');
+          if (!playBtn.classList.contains('playing')) stopDrone();
         }
         return;
       }
-      // Chord layers: clear if loaded, or auto-select first chord to turn on
+      // Chord layers: clear if loaded, or auto-select Cmaj7 to pre-load
       if (state.layers[layerIndex].type) {
         clearLayer(layerIndex);
       } else {
@@ -758,13 +776,16 @@ async function addNote(note) {
   await initAudioContext();
   const ctx = getAudioContext();
 
-  // Calculate time position
+  // Note: engine is NOT started here — notes are queued silently until
+  // the user turns on S1 or main power. Preview tone still plays below.
+
+  // Calculate time position (isPlaying is now true, so elapsed reflects real playhead)
   let time;
-  if (state.isPlaying && state.sequencer.loopStartTime > 0) {
+  if (state.isPlaying) {
     const elapsed = ctx.currentTime - state.sequencer.loopStartTime;
     time = elapsed % LOOP_LENGTH;
   } else {
-    // Not playing - add at next available grid position
+    // Fallback: add at next available grid position
     const existingTimes = state.sequencer.notes.map(n => n.time);
     time = 0;
     const gridSize = LOOP_LENGTH / GRID_DIVISIONS;
@@ -784,14 +805,17 @@ async function addNote(note) {
     if (time >= LOOP_LENGTH) time = 0;
   }
 
-  // Auto-start the drone when a note is added while stopped
-  if (!state.isPlaying) {
-    await startDrone();
-    const playBtn = document.getElementById('play-btn');
-    if (state.isPlaying) {
-      playBtn.classList.add('playing');
-      playBtn.setAttribute('aria-label', 'Pause drone');
-    }
+  // Enforce per-gridline note limit (checked after time is known)
+  const _gridSize = LOOP_LENGTH / GRID_DIVISIONS;
+  const notesAtGridline = state.sequencer.notes.filter(
+    n => Math.abs(n.time - time) < _gridSize * 0.5
+  ).length;
+  if (notesAtGridline >= MAX_NOTES_PER_GRIDLINE) {
+    playNotePreview(note);
+    const grid = document.getElementById('sequencer-grid');
+    grid.classList.add('at-limit');
+    setTimeout(() => grid.classList.remove('at-limit'), 400);
+    return;
   }
 
   // Add note
@@ -819,6 +843,9 @@ function removeNote(id) {
 
 function clearSequencer() {
   state.sequencer.notes = [];
+  state.sequencer.powered = false;
+  const playBtn = document.getElementById('play-btn');
+  if (!playBtn.classList.contains('playing')) stopDrone();
   updateSequencerUI();
 }
 
@@ -1008,11 +1035,11 @@ function startPlayheadAnimation() {
   const playhead = document.getElementById('grid-playhead');
 
   function animate() {
-    if (state.isPlaying && state.sequencer.notes.length > 0) {
+    if (state.isPlaying) {
       const ctx = getAudioContext();
       if (ctx) {
-        const elapsed = ctx.currentTime - state.sequencer.loopStartTime;
-        const position = elapsed % LOOP_LENGTH;
+        const elapsed = ctx.currentTime - state.sequencer.loopStartTime - PLAYHEAD_OFFSET;
+        const position = ((elapsed % LOOP_LENGTH) + LOOP_LENGTH) % LOOP_LENGTH;
         const percent = (position / LOOP_LENGTH) * 100;
         playhead.style.left = `${percent}%`;
       }
@@ -1302,6 +1329,13 @@ function restartLayerSource(index) {
 // ============ Start/Stop ============
 
 async function startDrone() {
+  if (droneStartPromise) {
+    await droneStartPromise;
+    return;
+  }
+  let resolveStart;
+  droneStartPromise = new Promise(r => { resolveStart = r; });
+  try {
   const { masterGain } = await initAudioContext();
   await resumeContext();
 
@@ -1392,6 +1426,10 @@ async function startDrone() {
       applyBypass(stage, true);
     }
   });
+  } finally {
+    resolveStart();
+    droneStartPromise = null;
+  }
 }
 
 function startSequencerScheduler() {
