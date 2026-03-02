@@ -20,7 +20,7 @@ No build tools, no dependencies, no server required. Open `index.html` in a brow
 ⟡ - - - - - - - ↓ - - - - - - - ⟡
   ± M. Gain     ↓
   ± Analyser    ↓
-  = Output ⋆.˚⟡ ࣪ ˖⋆.˚⟡ ࣪ ˖⋆.˚
+  = Output ⋆.˚⟡ ࣪ ˖⋆.˚⟡  ࣪ ˖⋆.˚
 ⟡ - - - - - - - - - - - - - - - ⟡
 ```
 
@@ -44,13 +44,11 @@ All audio runs through the **Web Audio API** with zero external libraries.
 
 **Modulation** uses four unsynchronized LFOs (0.03-0.19 Hz) connected to per-layer filter cutoff frequencies. The non-synced rates create organic, non-repeating evolution — the sound never loops back to the same state.
 
-**Granular processor** (`granular.js`) is implemented but currently unused in the UI. It splits audio buffers into overlapping grains (5-300ms) with Hann window envelopes and random position/pitch scatter.
-
 ### Per-Layer Controls
 
 | Control | Parameter | Range |
 |---------|-----------|-------|
-| VOL | Layer gain | 0-100 |
+| VOL  | Layer gain | 0-100 |
 | TONE | Lowpass filter cutoff (200-8000 Hz, exponential) | 0-100 |
 | PTCH | Playback rate / frequency multiplier | -24 to +24 semitones |
 | LGTH | Generated buffer duration (chord layers only) | 2-10 seconds |
@@ -70,7 +68,6 @@ Each effect stage has an independent bypass toggle. Bypassed stages crossfade to
 │   ├── audio-engine.js     AudioContext, master gain, analyser setup
 │   ├── effects.js          Saturation, delay, convolution reverb chain
 │   ├── modulation.js       4-LFO modulation system
-│   ├── granular.js         Granular synthesis processor (unused in UI)
 │   ├── fader.js            Custom vertical fader component
 │   ├── url-state.js        URL preset encoding/decoding
 └   └── main.js             Application state, UI bindings, sequencer
@@ -121,7 +118,7 @@ Opening a URL with a `?p=` parameter restores the full preset on load. Malformed
 
 ## Open Source Credits
 
-This project uses no runtime libraries. Two open-source assets are bundled directly:
+This project uses no runtime libraries. One open-source asset is bundled directly:
 
 ### BIP39 English Wordlist
 - **What:** 2048-word list used to encode preset URLs as human-readable word sequences (e.g. `?p=hollow-amber-echo-drift`)
