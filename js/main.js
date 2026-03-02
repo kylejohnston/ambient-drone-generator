@@ -785,11 +785,10 @@ async function addNote(note) {
     const elapsed = ctx.currentTime - state.sequencer.loopStartTime;
     time = elapsed % LOOP_LENGTH;
   } else {
-    // Fallback: add at next available grid position
-    const existingTimes = state.sequencer.notes.map(n => n.time);
+    // Fallback: add at next available grid position, allowing same-slot stacking
     time = 0;
     const gridSize = LOOP_LENGTH / GRID_DIVISIONS;
-    while (existingTimes.some(t => Math.abs(t - time) < gridSize * 0.5)) {
+    while (state.sequencer.notes.filter(n => Math.abs(n.time - time) < gridSize * 0.5).length >= MAX_NOTES_PER_GRIDLINE) {
       time += gridSize;
       if (time >= LOOP_LENGTH) {
         time = 0;
@@ -870,17 +869,8 @@ function updateSequencerUI() {
 
     // Position: notes fill their column (between grid lines)
     const leftPercent = (noteData.time / LOOP_LENGTH) * 100;
-    const info = noteRows.get(noteData.id) || { row: 0, stackIndex: -1, stackSize: 1 };
-    let topOffset;
-    if (info.stackIndex >= 0) {
-      // Card-deck stack: center the stack vertically, offset each card by 6px
-      const stackBaseTop = Math.round((120 - 32) / 2) - Math.round((info.stackSize - 1) * 3);
-      topOffset = stackBaseTop + info.stackIndex * 6;
-      block.classList.add('stacked');
-      block.style.zIndex = info.stackSize - info.stackIndex;
-    } else {
-      topOffset = 7 + info.row * 38;
-    }
+    const info = noteRows.get(noteData.id) || { row: 0 };
+    const topOffset = 7 + info.row * 35;
     block.style.left = `calc(${leftPercent}% + 2px)`;
     block.style.top = `${topOffset}px`;
 
@@ -915,46 +905,24 @@ function updateSequencerUI() {
 }
 
 function assignNoteRows(notes) {
-  const rowMap = new Map();         // noteId -> { row, stackIndex, stackSize }
+  const rowMap = new Map();         // noteId -> { row }
   const gridSize = LOOP_LENGTH / GRID_DIVISIONS;
-
-  // Group notes by their quantized grid slot
-  const groups = new Map(); // slotKey -> [note, ...]
-  notes.forEach(note => {
-    const slot = Math.round(note.time / gridSize);
-    if (!groups.has(slot)) groups.set(slot, []);
-    groups.get(slot).push(note);
-  });
-
-  // For single-note groups: spread across up to 3 rows (existing behaviour)
-  // For multi-note groups: mark as stacked
   const sortedNotes = [...notes].sort((a, b) => a.time - b.time);
 
   sortedNotes.forEach(note => {
-    const slot = Math.round(note.time / gridSize);
-    const group = groups.get(slot);
-
-    if (group.length > 1) {
-      // Stacked group: assign stack index in insertion order
-      const stackIndex = group.indexOf(note);
-      rowMap.set(note.id, { row: -1, stackIndex, stackSize: group.length });
-      return;
-    }
-
-    // Single note: assign to first available row (existing spread logic)
     let row = 0;
     while (row <= 2) {
       const conflict = sortedNotes.some(other => {
         if (other.id === note.id) return false;
         const otherInfo = rowMap.get(other.id);
         if (!otherInfo || otherInfo.row !== row) return false;
-        return Math.abs(other.time - note.time) < gridSize * 2;
+        return Math.abs(other.time - note.time) < gridSize * 0.5;
       });
       if (!conflict) break;
       row++;
     }
     if (row > 2) row = 0;
-    rowMap.set(note.id, { row, stackIndex: -1, stackSize: 1 });
+    rowMap.set(note.id, { row });
   });
 
   return rowMap;
@@ -1445,6 +1413,8 @@ function startSequencerScheduler() {
 
 function stopDrone() {
   state.isPlaying = false;
+  state.sequencer.powered = false;
+  document.querySelector('.sequencer-layer')?.classList.remove('has-content');
 
   modulation?.stop();
 
