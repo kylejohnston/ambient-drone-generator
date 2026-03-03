@@ -1006,6 +1006,9 @@ footer a:hover {
   .panel--sequencer {
     grid-template-columns: 1fr;
   }
+  .panel--layer .layer-header {
+    width: 100%;
+  }
 
   .sequencer-left {
     min-width: 0;
@@ -1021,10 +1024,17 @@ footer a:hover {
     justify-content: space-between;
     align-items: start;
   }
+  .header h1 {
+    font-size: 2.5rem;
+  }
 
   .panel--layer,
   .panel--effects {
     align-items: start;
+  }
+  .fader, 
+  .fader__track {
+    width: 56px;
   }
   .fader__track {
     height: 120px;
